@@ -347,3 +347,20 @@ dates |> count(annee = year(inscription))
 Aucune date n'est manquante après conversion. Les inscriptions se répartissent sur 2023, 2024 et 2025 (voir le tableau ci-dessus).
 
 
+## B7. Le fichier propre
+
+```{r}
+contacts_propres <- dates |>
+  mutate(email = if_else(email_valide, email, NA_character_)) |>
+  select(id, prenom, nom, email, tel, cp, ville, inscription)
+
+dir.create("sorties", showWarnings = FALSE)
+write_csv(contacts_propres, "sorties/contacts_propres.csv")
+
+contacts_propres |> head() |> knitr::kable()
+n_complets <- contacts_propres |> drop_na() |> nrow()
+n_complets
+```
+
+`r n_complets` contacts sur `r nrow(contacts_propres)` sont complets (aucune valeur manquante) ; les autres ont un e-mail invalide ou un téléphone manquant ou invalide.
+

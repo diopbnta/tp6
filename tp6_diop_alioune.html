@@ -379,6 +379,8 @@ e-mails</a></li>
 <li><a href="#b5.-les-adresses" id="toc-b5.-les-adresses">B5. Les
 adresses</a></li>
 <li><a href="#b6.-les-dates-dinscription" id="toc-b6.-les-dates-dinscription">B6. Les dates d’inscription</a></li>
+<li><a href="#b7.-le-fichier-propre" id="toc-b7.-le-fichier-propre">B7.
+Le fichier propre</a></li>
 </ul></li>
 </ul>
 </div>
@@ -1011,6 +1013,108 @@ dates |&gt; select(id, inscription) |&gt; head()</code></pre>
 ## 3  2025    22</code></pre>
 <p>Aucune date n’est manquante après conversion. Les inscriptions se
 répartissent sur 2023, 2024 et 2025 (voir le tableau ci-dessus).</p>
+</div>
+<div id="b7.-le-fichier-propre" class="section level2">
+<h2>B7. Le fichier propre</h2>
+<pre class="r"><code>contacts_propres &lt;- dates |&gt;
+  mutate(email = if_else(email_valide, email, NA_character_)) |&gt;
+  select(id, prenom, nom, email, tel, cp, ville, inscription)
+
+dir.create(&quot;sorties&quot;, showWarnings = FALSE)
+write_csv(contacts_propres, &quot;sorties/contacts_propres.csv&quot;)
+
+contacts_propres |&gt; head() |&gt; knitr::kable()</code></pre>
+<table style="width:100%;">
+<colgroup>
+<col width="5%" />
+<col width="8%" />
+<col width="11%" />
+<col width="27%" />
+<col width="16%" />
+<col width="6%" />
+<col width="10%" />
+<col width="13%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">id</th>
+<th align="left">prenom</th>
+<th align="left">nom</th>
+<th align="left">email</th>
+<th align="left">tel</th>
+<th align="left">cp</th>
+<th align="left">ville</th>
+<th align="left">inscription</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">C001</td>
+<td align="left">Valérie</td>
+<td align="left">FALL</td>
+<td align="left"><a href="mailto:valerie.fall@yahoo.fr" class="email">valerie.fall@yahoo.fr</a></td>
+<td align="left">NA</td>
+<td align="left">75020</td>
+<td align="left">Paris</td>
+<td align="left">2023-08-24</td>
+</tr>
+<tr class="even">
+<td align="left">C002</td>
+<td align="left">Jade</td>
+<td align="left">GIRARD</td>
+<td align="left"><a href="mailto:jade.girard@free.fr" class="email">jade.girard@free.fr</a></td>
+<td align="left">04 50 22 51 38</td>
+<td align="left">59000</td>
+<td align="left">Lille</td>
+<td align="left">2025-02-20</td>
+</tr>
+<tr class="odd">
+<td align="left">C003</td>
+<td align="left">Chen</td>
+<td align="left">CHEVALIER</td>
+<td align="left"><a href="mailto:chen.chevalier@orange.fr" class="email">chen.chevalier@orange.fr</a></td>
+<td align="left">01 02 23 14 73</td>
+<td align="left">75011</td>
+<td align="left">Paris</td>
+<td align="left">2025-08-20</td>
+</tr>
+<tr class="even">
+<td align="left">C004</td>
+<td align="left">Awa</td>
+<td align="left">NDIAYE</td>
+<td align="left"><a href="mailto:awa.ndiaye@lecnam.net" class="email">awa.ndiaye@lecnam.net</a></td>
+<td align="left">01 98 84 59 09</td>
+<td align="left">75011</td>
+<td align="left">Paris</td>
+<td align="left">2024-09-02</td>
+</tr>
+<tr class="odd">
+<td align="left">C005</td>
+<td align="left">Gaël</td>
+<td align="left">MBAYE</td>
+<td align="left"><a href="mailto:gael.mbaye@lecnam.net" class="email">gael.mbaye@lecnam.net</a></td>
+<td align="left">04 57 05 26 77</td>
+<td align="left">31000</td>
+<td align="left">Toulouse</td>
+<td align="left">2025-07-22</td>
+</tr>
+<tr class="even">
+<td align="left">C006</td>
+<td align="left">Rokhaya</td>
+<td align="left">BENALI</td>
+<td align="left"><a href="mailto:rokhaya.benali@yahoo.fr" class="email">rokhaya.benali@yahoo.fr</a></td>
+<td align="left">06 40 95 18 29</td>
+<td align="left">44000</td>
+<td align="left">Nantes</td>
+<td align="left">2025-02-20</td>
+</tr>
+</tbody>
+</table>
+<pre class="r"><code>n_complets &lt;- contacts_propres |&gt; drop_na() |&gt; nrow()
+n_complets</code></pre>
+<pre><code>## [1] 51</code></pre>
+<p>51 contacts sur 60 sont complets (aucune valeur manquante) ; les
+autres ont un e-mail invalide ou un téléphone manquant ou invalide.</p>
 </div>
 </div>
 
