@@ -1,0 +1,708 @@
+---
+title: "TP 6 : Texte et expressions régulières"
+author: "Alioune DIOP"
+date: "2026-11-18"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+library(tidyverse)   # charge aussi stringr et lubridate
+```
+
+# Partie A : Fonctions de texte et premières regex
+
+## A1. Prédire avant d'exécuter
+
+Prédictions écrites **avant** l'exécution :
+
+| Instruction | Prédiction |
+|---|---|
+| `nchar("Été 2026 ")` | `9` : É, t, é, espace, 2, 0, 2, 6, espace |
+| `str_sub("Conservatoire", -5)` | `"toire"` : les 5 derniers caractères |
+| `str_detect(c("a.b", "axb", "ab"), "a.b")` | `TRUE TRUE FALSE` : le `.` remplace n'importe quel caractère, mais il en faut un |
+| `str_detect(c("a.b", "axb", "ab"), "a\\.b")` | `TRUE FALSE FALSE` : `\\.` est un point littéral |
+| `str_count("banana", "an")` | `2` |
+| `str_replace("aaa", "a", "b")` | `"baa"` : seule la 1re occurrence est remplacée |
+| `str_extract("Tel : 06 12 34 56 78", "\\d+")` | `"06"` : la 1re suite de chiffres, qui s'arrête à l'espace |
+| `str_split("a,b,,c", ",")` | une **liste** contenant `"a" "b" "" "c"` |
+
+```{r}
+nchar("Été 2026 ")
+str_sub("Conservatoire", -5)
+str_detect(c("a.b", "axb", "ab"), "a.b")
+str_detect(c("a.b", "axb", "ab"), "a\\.b")
+str_count("banana", "an")
+str_replace("aaa", "a", "b")
+str_extract("Tel : 06 12 34 56 78", "\\d+")
+str_split("a,b,,c", ",")
+```
+
+Les résultats correspondent aux prédictions. Les points à retenir : `nchar()` compte les caractères (les lettres accentuées comptent pour 1) **et** l'espace final ; le `.` d'une regex est un joker qu'il faut échapper (`\\.`) pour désigner un vrai point ; `str_replace()` ne remplace que la première occurrence (`str_replace_all()` les remplacerait toutes) ; `str_extract()` ne renvoie que la première correspondance ; enfin `str_split()` renvoie une liste (un élément par chaîne en entrée) et deux virgules consécutives produisent une chaîne vide `""`.
+
+## A2. Mettre en forme
+
+```{r}
+villes <- c("  paris", "SAINT-ÉTIENNE ", "aix-en-provence", "Le  Mans", "nîmes")
+```
+
+**a.** `str_squish()` retire les espaces en début et fin et réduit les espaces multiples à un seul.
+
+```{r}
+villes_propres <- villes |> str_squish() |> str_to_title()
+villes_propres
+```
+
+Le résultat `"Aix-En-Provence"` n'est **pas correct** : `str_to_title()` met une majuscule après chaque séparateur, y compris le tiret, alors que l'orthographe correcte est « Aix-en-Provence » (les mots de liaison restent en minuscules). Pour « Saint-Étienne », en revanche, c'est correct.
+
+**b.**
+
+```{r}
+str_c(str_pad(villes_propres, width = 20, side = "left"),
+      " (", str_length(villes_propres), ")")
+```
+
+**c.** Pour retirer les accents, on utilise la translittération `Latin-ASCII` du package `stringi` (sur lequel repose `stringr`).
+
+```{r}
+villes_propres |>
+  stringi::stri_trans_general("Latin-ASCII") |>
+  str_to_upper() |>
+  str_replace_all(" ", "-")
+```
+
+## A3. Des codes produits
+
+```{r}
+codes <- c("FR-2024-00123", "FR-2025-04567", "DE-2025-00089", "fr-2023-1", "FR2025-00999",
+           "IT-2024-12345", "FR-2026-00042", "ES-2025-0071")
+```
+
+**a.**
+
+```{r}
+regex_code <- "^([A-Z]{2})-(\\d{4})-(\\d{5})$"
+codes_valides <- str_subset(codes, regex_code)
+str_subset(codes, regex_code, negate = TRUE)   # codes invalides
+```
+
+Trois codes sont invalides : `fr-2023-1` (minuscules et numéro trop court), `FR2025-00999` (tiret manquant) et `ES-2025-0071` (numéro sur 4 chiffres). Les ancres `^` et `$` sont indispensables pour imposer que **toute** la chaîne respecte le format.
+
+**b.** `str_match()` renvoie une matrice : la 1re colonne est la correspondance complète, les suivantes les groupes capturants.
+
+```{r}
+m <- str_match(codes_valides, regex_code)
+refs <- tibble(pays = m[, 2], annee = as.integer(m[, 3]), numero = m[, 4])
+refs
+```
+
+**c.**
+
+```{r}
+refs |> count(pays, sort = TRUE)
+```
+
+Sur les `r length(codes_valides)` codes valides, `r sum(refs$pays == "FR")` sont français, un est allemand et un italien.
+
+## A4. Déboguer des regex
+
+```{r}
+x <- c("rapport.pdf", "photo.PNG", "notes.pdf.bak", "data_pdf")
+```
+
+1. `".pdf"` : le point est un joker et le motif n'est pas ancré, donc `"notes.pdf.bak"` et `"data_pdf"` sont aussi retenus. Il faut échapper le point et ancrer en fin de chaîne : `"\\.pdf$"` (avec `ignore_case` pour accepter aussi `.PDF`).
+2. `"^\\d+$"` impose que **toute** la chaîne soit composée de chiffres ; or elle contient du texte. Pour savoir si elle *contient* un nombre, on retire les ancres : `"\\d+"`.
+3. Cette instruction est **correcte** : elle renvoie bien `"15/01/2026"` (les groupes 3, 2 et 1 sont réordonnés). Le piège était de croire qu'il y avait une erreur.
+4. Les regex sont sensibles à la casse : `"Photo"` n'est pas détecté. On utilise `regex(..., ignore_case = TRUE)`.
+
+```{r}
+str_subset(x, regex("\\.pdf$", ignore_case = TRUE))                # 1
+str_detect("prix : 1500 €", "\\d+")                                # 2
+str_replace("2026-01-15", "(\\d+)-(\\d+)-(\\d+)", "\\3/\\2/\\1")   # 3 (déjà correct)
+str_detect(c("Photo", "photo"), regex("^photo", ignore_case = TRUE)) # 4
+```
+
+# Partie B : Nettoyer un fichier de contacts
+
+## B1. Explorer
+
+On importe toutes les colonnes en texte pour ne rien perdre (les téléphones commençant par 0, par exemple).
+
+```{r}
+contacts <- read_csv("data/contacts_bruts.csv", col_types = cols(.default = col_character()))
+dim(contacts)
+contacts |> slice(seq(1, 60, by = 6)) |> knitr::kable()
+```
+
+Formats observés :
+
+- **id** : toujours `C` suivi de 3 chiffres, rien à corriger.
+- **nom** : `Prénom Nom` (« Gaël Mbaye »), `NOM Prénom` (« DIALLO Quentin »), `Nom, Prénom` (« Benali, Rokhaya »), en minuscules avec des espaces superflus (« ··awa···ndiaye· ») ou tout en majuscules (« JADE GIRARD ») ; certains noms ont deux mots (« Le Goff »).
+- **email** : en minuscules ou en MAJUSCULES, avec des erreurs : `@` manquant (`moussa.wangyahoo.fr`), doublé (`@@`), pas d'extension (`@gmail`) ou valeur manquante.
+- **telephone** : `06 12 34 56 78`, `0612345678`, `06.12.34.56.78`, `06-12-34-56-78`, `+33 6 …`, `+33(0)6…`, plus des valeurs invalides (`inconnu`, `06 12 34`) ou manquantes.
+- **adresse** : `numéro voie, CP VILLE`, avec la ville en majuscules ou non et des voies abrégées (`Av.`, `bd`).
+- **inscription** : `jj/mm/aaaa`, `aaaa-mm-jj` ou `jj-mm-aa`.
+
+## B2. Les noms
+
+**a.** On commence par `str_squish()`, puis on distingue les trois cas avec `case_when()`.
+
+```{r}
+maj <- "^[[:upper:]]+$"   # un mot entièrement en majuscules
+
+noms <- contacts |>
+  mutate(
+    nom_brut = str_squish(nom),
+    mot1 = word(nom_brut, 1),
+    mot2 = word(nom_brut, 2),
+    format = case_when(
+      str_detect(nom_brut, ",") ~ "Nom, Prénom",
+      str_detect(mot1, maj) & !str_detect(mot2, maj) ~ "NOM Prénom",
+      .default = "Prénom Nom"
+    ),
+    prenom = case_when(
+      format == "Nom, Prénom" ~ str_trim(str_extract(nom_brut, "(?<=,).*")),
+      format == "NOM Prénom"  ~ word(nom_brut, 2, -1),
+      .default = mot1
+    ),
+    nom = case_when(
+      format == "Nom, Prénom" ~ str_extract(nom_brut, "^[^,]+"),
+      format == "NOM Prénom"  ~ mot1,
+      .default = word(nom_brut, 2, -1)
+    )
+  )
+```
+
+**b.**
+
+```{r}
+noms <- noms |>
+  mutate(prenom = str_to_title(prenom),
+         nom = str_to_upper(nom))
+```
+
+**c.** Trois lignes de chaque format détecté :
+
+```{r}
+noms |>
+  group_by(format) |>
+  slice_head(n = 3) |>
+  ungroup() |>
+  select(id, nom_brut, format, prenom, nom) |>
+  knitr::kable()
+```
+
+Les cas courants sont correctement traités, mais un nom reste mal découpé : « LE GOFF Nora » (C030). Son premier **et** son deuxième mot sont en majuscules, donc la règle `NOM Prénom` ne s'applique pas et on obtient le prénom « Le » et le nom « GOFF NORA ». Plus généralement, quand le nom est écrit tout en majuscules ou en minuscules, la casse ne permet plus de distinguer le prénom du nom : un nom composé (« LE GOFF ») ou un prénom composé ne serait pas découpé correctement.
+
+
+
+```{r}
+noms |> filter(str_detect(nom, " ")) |> select(id, nom_brut, prenom, nom)
+```
+
+## B3. Les e-mails
+
+**a.**
+
+```{r}
+regex_email <- "^[a-z0-9._-]+@[a-z0-9-]+(\\.[a-z0-9-]+)*\\.[a-z]{2,4}$"
+
+emails <- noms |>
+  mutate(email = str_to_lower(email),
+         email_valide = !is.na(email) & str_detect(email, regex_email))
+```
+
+La regex impose : des caractères autorisés, **un seul** `@` (le domaine ne peut pas contenir de `@`), un nom de domaine, un point, puis 2 à 4 lettres en fin de chaîne.
+
+**b.**
+
+```{r}
+invalides <- emails |> filter(!email_valide) |> select(id, prenom, nom, email)
+invalides
+```
+
+`r nrow(invalides)` e-mails sont invalides : `r sum(!is.na(invalides$email))` mal formés (`@` absent ou doublé, extension manquante) et `r sum(is.na(invalides$email))` manquant.
+
+**c.**
+
+```{r}
+domaines <- emails |>
+  filter(email_valide) |>
+  mutate(domaine = str_extract(email, "(?<=@).+$")) |>
+  count(domaine, sort = TRUE)
+domaines
+```
+
+Le domaine le plus fréquent est `r domaines$domaine[1]` (`r domaines$n[1]` contacts), suivi de `r domaines$domaine[2]` (`r domaines$n[2]`).
+
+## B4. Les téléphones
+
+**a.**
+
+```{r}
+tels <- emails |>
+  mutate(
+    tel_chiffres = telephone |>
+      str_replace("^\\+33\\s*(\\(0\\))?", "0") |>
+      str_remove_all("\\D"),
+    tel = if_else(str_detect(tel_chiffres, "^0\\d{9}$"),
+                  str_replace(tel_chiffres, "^(\\d{2})(\\d{2})(\\d{2})(\\d{2})(\\d{2})$",
+                              "\\1 \\2 \\3 \\4 \\5"),
+                  NA_character_)
+  )
+tels |> select(id, telephone, tel) |> slice(c(1, 5, 8, 9, 15, 16, 33, 44))
+```
+
+**b.**
+
+```{r}
+n_valides <- sum(!is.na(tels$tel))
+n_mobiles <- sum(str_detect(tels$tel, "^0[67]"), na.rm = TRUE)
+c(valides = n_valides, mobiles = n_mobiles)
+```
+
+Il y a `r n_valides` numéros valides sur `r nrow(tels)`, dont `r n_mobiles` mobiles (06 ou 07). Les `r nrow(tels) - n_valides` autres sont manquants ou invalides (`inconnu`, `06 12 34`).
+
+**c.**
+
+```{r}
+zones <- tels |>
+  mutate(indicatif = str_sub(tel, 1, 2)) |>
+  filter(indicatif %in% c("01", "02", "03", "04", "05")) |>
+  mutate(zone = case_when(
+    indicatif == "01" ~ "Île-de-France",
+    indicatif == "02" ~ "Nord-Ouest",
+    indicatif == "03" ~ "Nord-Est",
+    indicatif == "04" ~ "Sud-Est",
+    indicatif == "05" ~ "Sud-Ouest"
+  )) |>
+  count(indicatif, zone)
+zones
+```
+
+Les `r sum(zones$n)` numéros fixes se partagent entre `r zones$zone[1]` (`r zones$n[1]`) et `r zones$zone[2]` (`r zones$n[2]`) : aucun numéro ne commence par 02, 03 ou 05.
+
+## B5. Les adresses
+
+```{r}
+adresses <- tels |>
+  separate_wider_regex(
+    adresse,
+    patterns = c(rue = "[^,]+", ",\\s*", cp = "\\d{5}", "\\s+", ville = ".+")
+  ) |>
+  mutate(ville = str_to_title(ville),
+         departement = str_sub(cp, 1, 2))
+
+adresses |> select(rue, cp, ville, departement) |> head()
+adresses |> count(ville, departement, sort = TRUE)
+```
+
+Après mise en forme, `r n_distinct(adresses$ville)` villes différentes apparaissent (« PARIS » et « Paris » sont maintenant regroupées) ; `r count(adresses, ville, sort = TRUE)$ville[1]` est la plus représentée.
+
+## B6. Les dates d'inscription
+
+**a.**
+
+```{r}
+f_slash  <- "^\\d{2}/\\d{2}/\\d{4}$"   # jj/mm/aaaa
+f_iso    <- "^\\d{4}-\\d{2}-\\d{2}$"   # aaaa-mm-jj
+f_court  <- "^\\d{2}-\\d{2}-\\d{2}$"   # jj-mm-aa
+
+c(jj_mm_aaaa = sum(str_detect(contacts$inscription, f_slash)),
+  aaaa_mm_jj = sum(str_detect(contacts$inscription, f_iso)),
+  jj_mm_aa   = sum(str_detect(contacts$inscription, f_court)))
+```
+
+Les trois formats couvrent bien les 60 dates.
+
+**b.**
+
+```{r}
+dates <- adresses |>
+  mutate(inscription = case_when(
+    str_detect(inscription, f_slash) ~ dmy(inscription),
+    str_detect(inscription, f_iso)   ~ ymd(inscription),
+    str_detect(inscription, f_court) ~ dmy(inscription)
+  ))
+dates |> select(id, inscription) |> head()
+```
+
+**c.**
+
+```{r}
+sum(is.na(dates$inscription))
+dates |> count(annee = year(inscription))
+```
+
+Aucune date n'est manquante après conversion. Les inscriptions se répartissent sur 2023, 2024 et 2025 (voir le tableau ci-dessus).
+
+## B7. Le fichier propre
+
+```{r}
+contacts_propres <- dates |>
+  mutate(email = if_else(email_valide, email, NA_character_)) |>
+  select(id, prenom, nom, email, tel, cp, ville, inscription)
+
+dir.create("sorties", showWarnings = FALSE)
+write_csv(contacts_propres, "sorties/contacts_propres.csv")
+
+contacts_propres |> head() |> knitr::kable()
+n_complets <- contacts_propres |> drop_na() |> nrow()
+n_complets
+```
+
+`r n_complets` contacts sur `r nrow(contacts_propres)` sont complets (aucune valeur manquante) ; les autres ont un e-mail invalide ou un téléphone manquant ou invalide.
+
+# Partie C : Analyser le journal d'un serveur
+
+## C1. Lire et compter
+
+```{r}
+lignes <- read_lines("data/journal_serveur.log")
+length(lignes)
+
+c(INFO  = sum(str_detect(lignes, "\\[INFO\\]")),
+  WARN  = sum(str_detect(lignes, "\\[WARN\\]")),
+  ERROR = sum(str_detect(lignes, "\\[ERROR\\]")))
+```
+
+Le journal compte `r length(lignes)` lignes : `r sum(str_detect(lignes, "\\[INFO\\]"))` INFO, `r sum(str_detect(lignes, "\\[WARN\\]"))` WARN et `r sum(str_detect(lignes, "\\[ERROR\\]"))` ERROR. Les crochets doivent être échappés car `[...]` désigne une classe de caractères.
+
+## C2. Structurer le journal
+
+```{r}
+champ <- function(x, motif) str_match(x, motif)[, 2]   # 1er groupe capturant
+
+log <- tibble(ligne = lignes) |>
+  mutate(
+    horodatage = ymd_hms(str_extract(ligne, "^\\S+ \\S+")),
+    niveau  = champ(ligne, "\\[(\\w+)\\]"),
+    user    = na_if(champ(ligne, "user=(\\S+)"), "-"),
+    ip      = champ(ligne, "ip=(\\S+)"),
+    action  = champ(ligne, "action=(\\S+)"),
+    fichier = champ(ligne, "fichier=(\\S+)"),
+    code    = as.integer(champ(ligne, "code=(\\d+)")),
+    duree   = as.numeric(champ(ligne, "duree=(\\d+)ms")),
+    msg     = champ(ligne, 'msg="([^"]*)"')
+  ) |>
+  select(-ligne)
+
+log
+```
+
+`str_match()` renvoie `NA` lorsque le motif est absent, ce qui donne directement `NA` pour `fichier` et `msg` quand ces champs n'existent pas.
+
+## C3. Activité
+
+**a.**
+
+```{r}
+log |>
+  count(jour = as_date(horodatage), niveau) |>
+  pivot_wider(names_from = niveau, values_from = n, values_fill = 0) |>
+  select(jour, INFO, WARN, ERROR)
+```
+
+L'activité est comparable sur les trois jours (entre 121 et 146 requêtes) ; le 17 janvier est le jour le plus chargé, mais aussi celui qui compte le moins d'erreurs.
+
+**b.**
+
+```{r}
+par_heure <- log |> count(heure = hour(horodatage), sort = TRUE)
+head(par_heure, 5)
+```
+
+Le serveur est le plus sollicité à `r par_heure$heure[1]` h (`r par_heure$n[1]` requêtes sur les trois jours).
+
+**c.**
+
+```{r}
+erreurs_user <- log |> filter(niveau == "ERROR") |> count(user, sort = TRUE)
+erreurs_user
+part_anonyme <- mean(is.na(log$user))
+part_anonyme
+```
+
+L'utilisateur ayant le plus d'erreurs est `r erreurs_user$user[1]` (`r erreurs_user$n[1]` erreurs). Les requêtes anonymes représentent `r round(100 * part_anonyme, 1)` % du total.
+
+## C4. Performances et erreurs
+
+**a.**
+
+```{r}
+log |>
+  group_by(action) |>
+  summarise(n = n(),
+            mediane = median(duree),
+            p90 = quantile(duree, 0.9)) |>
+  arrange(desc(mediane))
+```
+
+**b.**
+
+```{r}
+duree_niveau <- log |>
+  group_by(niveau) |>
+  summarise(n = n(), mediane = median(duree), p90 = quantile(duree, 0.9))
+duree_niveau
+```
+
+Oui : la durée médiane des requêtes en erreur (`r duree_niveau$mediane[duree_niveau$niveau == "ERROR"]` ms) est nettement supérieure à celle des requêtes INFO (`r duree_niveau$mediane[duree_niveau$niveau == "INFO"]` ms), ce qui est cohérent avec les messages de timeout.
+
+**c.**
+
+```{r}
+log |> filter(!is.na(msg)) |> count(msg, sort = TRUE)
+```
+
+Quatre messages d'erreur différents apparaissent ; le plus fréquent est le timeout de la base de données.
+
+**d.**
+
+```{r}
+telechargements <- log |>
+  filter(action == "download", code == 200) |>
+  mutate(extension = str_extract(fichier, "(?<=\\.)[^.]+$"))
+
+telechargements |> count(fichier, sort = TRUE)
+telechargements |> count(extension, sort = TRUE)
+```
+
+Le fichier le plus téléchargé avec succès est `r count(telechargements, fichier, sort = TRUE)$fichier[1]` (`r count(telechargements, fichier, sort = TRUE)$n[1]` fois) ; comme chaque extension ne correspond ici qu'à un seul fichier, le classement par extension (png, csv, html…) est identique.
+
+## C5. Adresses IP suspectes
+
+**a.**
+
+```{r}
+externes <- log |> filter(!str_detect(ip, "^192\\.168\\."))
+nrow(externes)
+n_distinct(externes$ip)
+```
+
+`r nrow(externes)` requêtes viennent de l'extérieur du réseau interne, depuis `r n_distinct(externes$ip)` adresses distinctes.
+
+**b.**
+
+```{r}
+suspectes <- externes |>
+  group_by(ip) |>
+  summarise(
+    requetes = n(),
+    utilisateurs = n_distinct(user, na.rm = TRUE),
+    anonymes = sum(is.na(user)),
+    erreurs = sum(niveau == "ERROR"),
+    refus = sum(code %in% c(401, 429))
+  ) |>
+  arrange(desc(requetes))
+suspectes
+
+externes |> filter(ip == suspectes$ip[1]) |> count(user, action, code, sort = TRUE)
+```
+
+Aucune des deux adresses extérieures ne provoque d'erreur ni de refus (401 ou 429). L'adresse la plus suspecte est néanmoins `r suspectes$ip[1]` : depuis l'extérieur, elle envoie `r suspectes$requetes[1]` requêtes sous `r suspectes$utilisateurs[1]` identités différentes (plus `r suspectes$anonymes[1]` anonyme). Une même machine ne devrait pas être utilisée par autant de comptes : cela évoque un partage d'identifiants ou une utilisation frauduleuse de comptes volés, d'autant que les connexions réussissent. `r suspectes$ip[2]` est également utilisée par `r suspectes$utilisateurs[2]` comptes différents pour `r suspectes$requetes[2]` requêtes : chaque compte n'y apparaît qu'une fois.
+
+**c.**
+
+```{r}
+regex_ipv4 <- "^\\d{1,3}(\\.\\d{1,3}){3}$"
+all(str_detect(log$ip, regex_ipv4))
+```
+
+Toutes les adresses ont bien la forme d'une adresse IPv4.
+
+# Partie D : Analyse textuelle d'avis clients
+
+## D1. Explorer les textes
+
+**a.**
+
+```{r}
+avis <- read_csv("data/avis_clients.csv") |>
+  mutate(longueur = str_length(texte))
+
+mean(avis$longueur)
+avis |> slice_max(longueur, n = 1) |> select(id_avis, produit, note, longueur, texte)
+```
+
+Un avis fait en moyenne `r round(mean(avis$longueur), 1)` caractères ; le plus long en compte `r max(avis$longueur)`.
+
+**b.**
+
+```{r}
+avis <- avis |>
+  mutate(majuscules = texte == str_to_upper(texte) & str_detect(texte, "[[:alpha:]]"))
+
+avis |> group_by(majuscules) |> summarise(n = n(), note_moyenne = mean(note))
+```
+
+`r sum(avis$majuscules)` avis sont écrits entièrement en majuscules. Leur note moyenne (`r round(mean(avis$note[avis$majuscules]), 2)`) est très proche de celle des autres (`r round(mean(avis$note[!avis$majuscules]), 2)`) : contrairement à l'intuition, écrire en majuscules ne traduit pas ici un mécontentement particulier (on trouve aussi bien « TAILLE TROP PETITE ! » que « EXCELLENT RAPPORT QUALITÉ/PRIX ! »).
+
+**c.**
+
+```{r}
+c(exclamation = sum(str_detect(avis$texte, "!")),
+  emoticone   = sum(str_detect(avis$texte, ":[()]")))
+```
+
+`r sum(str_detect(avis$texte, "!"))` avis contiennent au moins un point d'exclamation et `r sum(str_detect(avis$texte, ":[()]"))` un émoticône `:)` ou `:(`.
+
+## D2. Découper en mots
+
+**a.**
+
+```{r}
+mots <- avis |>
+  mutate(mot = str_split(str_to_lower(texte), "[^[:alpha:]']+")) |>
+  unnest(mot) |>
+  filter(mot != "") |>
+  select(id_avis, produit, note, mot)
+mots
+```
+
+**b.**
+
+```{r}
+c(total = nrow(mots), distincts = n_distinct(mots$mot))
+```
+
+Les avis contiennent `r nrow(mots)` mots au total, dont `r n_distinct(mots$mot)` distincts : le vocabulaire est très répétitif.
+
+**c.**
+
+```{r}
+mots |> count(mot, sort = TRUE) |> head(10)
+
+mots_vides <- c("le", "la", "les", "l'", "un", "une", "des", "du", "de", "d'", "d'un",
+                "au", "aux", "à", "en", "pour", "par", "sur", "dans", "avec", "dès",
+                "et", "ou", "mais", "ce", "c'est", "que", "qui", "je", "j'ai", "il",
+                "elle", "on", "se", "s'est", "est", "ne", "n'est", "mon", "ma", "mes")
+
+mots |> filter(!mot %in% mots_vides) |> count(mot, sort = TRUE) |> head(10)
+```
+
+Sans les mots vides, les mots les plus fréquents deviennent porteurs de sens (qualité, satisfait, trop, recommande…).
+
+## D3. Des mots qui distinguent les notes
+
+**a.**
+
+```{r}
+mots_utiles <- mots |>
+  filter(!mot %in% mots_vides) |>
+  mutate(categorie = case_when(note <= 2 ~ "négatif",
+                               note == 3 ~ "neutre",
+                               .default = "positif"))
+
+mots_utiles |>
+  count(categorie, mot) |>
+  group_by(categorie) |>
+  slice_max(n, n = 5, with_ties = FALSE) |>
+  ungroup()
+```
+
+Les avis positifs parlent de qualité et de satisfaction (« qualité », « satisfait », « bonne », « parfait »), les avis neutres d'un produit qui « fait le travail » mais est « un peu lourd », et les avis négatifs de taille (« taille », « petite ») et de prix (« trop »). On remarque que « recommande » ressort parmi les avis négatifs : il provient de « je **ne** recommande **pas** », d'où la présence de « pas » en tête ; compter les mots isolément fait perdre la négation.
+
+**b.** Chaque avis n'est compté qu'une fois par mot (`distinct()`), pour calculer la note moyenne **des avis** qui contiennent le mot.
+
+```{r}
+frequents <- mots_utiles |> count(mot) |> filter(n >= 10)
+
+note_par_mot <- mots_utiles |>
+  semi_join(frequents, by = "mot") |>
+  distinct(id_avis, mot, note) |>
+  group_by(mot) |>
+  summarise(nb_avis = n(), note_moyenne = mean(note)) |>
+  arrange(desc(note_moyenne))
+
+head(note_par_mot, 6)
+tail(note_par_mot, 6)
+```
+
+Les mots associés aux meilleures notes sont `r str_c(head(note_par_mot$mot, 3), collapse = ", ")`, ceux associés aux pires notes sont `r str_c(rev(tail(note_par_mot$mot, 3)), collapse = ", ")`.
+
+## D4. Un score de sentiment
+
+```{r}
+lex_positif <- c("satisfait", "excellent", "rapide", "confortable", "recommande", "parfait",
+                 "solide", "léger", "super", "bonne", "conforme", "correct")
+lex_negatif <- c("déçu", "petite", "retard", "cassé", "étanche", "injoignable", "cher",
+                 "fragile", "mauvaise", "lourd")
+```
+
+**a.** Règle : avant de compter, on remplace « ne recommande pas » par « déconseille » (mot absent du lexique positif). On compte des **mots entiers** grâce aux bornes `\\b`, pour que « léger » ne soit pas trouvé dans « légère » par exemple.
+
+```{r}
+motif_lexique <- function(lex) str_c("\\b(", str_c(lex, collapse = "|"), ")\\b")
+
+avis <- avis |>
+  mutate(
+    texte_norm = texte |>
+      str_to_lower() |>
+      str_replace_all("ne recommande pas", "déconseille"),
+    positifs = str_count(texte_norm, motif_lexique(lex_positif)),
+    negatifs = str_count(texte_norm, motif_lexique(lex_negatif)),
+    score = positifs - negatifs
+  )
+
+avis |> select(id_avis, note, texte, positifs, negatifs, score) |> head(8)
+```
+
+**b.**
+
+```{r}
+correlation <- cor(avis$score, avis$note)
+correlation
+avis |> group_by(note) |> summarise(n = n(), score_moyen = mean(score))
+```
+
+La corrélation entre le score et la note vaut `r round(correlation, 2)` : malgré la simplicité des lexiques, le score est un assez bon indicateur, le score moyen augmentant régulièrement avec la note.
+
+**c.**
+
+```{r}
+contradictions <- avis |>
+  filter((score > 0 & note <= 2) | (score < 0 & note >= 4)) |>
+  select(id_avis, note, score, texte)
+contradictions
+
+avis |>
+  filter(str_detect(texte, fixed(":("))) |>
+  select(id_avis, note, score, texte)
+```
+
+Aucun avis ne présente de contradiction franche entre le score et la note (`r nrow(contradictions)` ligne) : grâce à la règle sur « ne recommande pas », le score suit bien le sens de la note. En revanche, sur les `r sum(str_detect(avis$texte, fixed(":(")))` avis contenant `:(`, `r sum(str_detect(avis$texte, fixed(":(")) & avis$note >= 4)` ont une note de 4 ou 5 et un score positif (« Super produit ! je recommande ! solide et léger :( ») : l'émoticône triste contredit le texte et la note. Elle n'est donc pas un indicateur fiable du sentiment, et notre score a raison de l'ignorer.
+
+## D5. Synthèse par produit
+
+```{r}
+mot_negatif <- mots |>
+  filter(mot %in% lex_negatif) |>
+  count(produit, mot) |>
+  group_by(produit) |>
+  slice_max(n, n = 1, with_ties = FALSE) |>
+  ungroup() |>
+  select(produit, mot_negatif = mot, nb_cite = n)
+
+synthese <- avis |>
+  group_by(produit) |>
+  summarise(nb_avis = n(),
+            note_moyenne = mean(note),
+            score_moyen = mean(score),
+            part_negatifs = mean(note <= 2)) |>
+  left_join(mot_negatif, by = "produit") |>
+  arrange(desc(note_moyenne))
+
+synthese |>
+  knitr::kable(digits = 2)
+```
+
+```{r include = FALSE}
+meilleur <- synthese |> slice(1)
+pire <- synthese |> slice(n())
+```
+
+**Conclusion pour le responsable produit.** Le produit le mieux noté est « `r meilleur$produit` », avec une note moyenne de `r round(meilleur$note_moyenne, 2)` sur `r meilleur$nb_avis` avis et seulement `r round(100 * meilleur$part_negatifs)` % d'avis négatifs. À l'inverse, « `r pire$produit` » est le moins bien noté (`r round(pire$note_moyenne, 2)` de moyenne, `r round(100 * pire$part_negatifs)` % d'avis négatifs) et son défaut le plus cité est « `r pire$mot_negatif` » (`r pire$nb_cite` mentions) : c'est le point à corriger en priorité.

@@ -1,0 +1,44 @@
+---
+title: "TP 6 : Texte et expressions régulières"
+author: "Alioune DIOP"
+date: "2026-11-18"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+library(tidyverse)   # charge aussi stringr et lubridate
+```
+
+# Partie A : Fonctions de texte et premières regex
+
+## A1. Prédire avant d'exécuter
+
+Prédictions écrites **avant** l'exécution :
+
+| Instruction | Prédiction |
+|---|---|
+| `nchar("Été 2026 ")` | `9` : É, t, é, espace, 2, 0, 2, 6, espace |
+| `str_sub("Conservatoire", -5)` | `"toire"` : les 5 derniers caractères |
+| `str_detect(c("a.b", "axb", "ab"), "a.b")` | `TRUE TRUE FALSE` : le `.` remplace n'importe quel caractère, mais il en faut un |
+| `str_detect(c("a.b", "axb", "ab"), "a\\.b")` | `TRUE FALSE FALSE` : `\\.` est un point littéral |
+| `str_count("banana", "an")` | `2` |
+| `str_replace("aaa", "a", "b")` | `"baa"` : seule la 1re occurrence est remplacée |
+| `str_extract("Tel : 06 12 34 56 78", "\\d+")` | `"06"` : la 1re suite de chiffres, qui s'arrête à l'espace |
+| `str_split("a,b,,c", ",")` | une **liste** contenant `"a" "b" "" "c"` |
+
+```{r}
+nchar("Été 2026 ")
+str_sub("Conservatoire", -5)
+str_detect(c("a.b", "axb", "ab"), "a.b")
+str_detect(c("a.b", "axb", "ab"), "a\\.b")
+str_count("banana", "an")
+str_replace("aaa", "a", "b")
+str_extract("Tel : 06 12 34 56 78", "\\d+")
+str_split("a,b,,c", ",")
+```
+
+Les résultats correspondent aux prédictions. Les points à retenir : `nchar()` compte les caractères (les lettres accentuées comptent pour 1) **et** l'espace final ; le `.` d'une regex est un joker qu'il faut échapper (`\\.`) pour désigner un vrai point ; `str_replace()` ne remplace que la première occurrence (`str_replace_all()` les remplacerait toutes) ; `str_extract()` ne renvoie que la première correspondance ; enfin `str_split()` renvoie une liste (un élément par chaîne en entrée) et deux virgules consécutives produisent une chaîne vide `""`.
