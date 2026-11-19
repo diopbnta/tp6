@@ -394,6 +394,12 @@ Activité</a></li>
 erreurs</a></li>
 <li><a href="#c5.-adresses-ip-suspectes" id="toc-c5.-adresses-ip-suspectes">C5. Adresses IP suspectes</a></li>
 </ul></li>
+<li><a href="#partie-d-analyse-textuelle-davis-clients" id="toc-partie-d-analyse-textuelle-davis-clients">Partie D : Analyse
+textuelle d’avis clients</a>
+<ul>
+<li><a href="#d1.-explorer-les-textes" id="toc-d1.-explorer-les-textes">D1. Explorer les textes</a></li>
+<li><a href="#d2.-d%C3%A9couper-en-mots" id="toc-d2.-découper-en-mots">D2. Découper en mots</a></li>
+</ul></li>
 </ul>
 </div>
 
@@ -1376,6 +1382,113 @@ fois.</p>
 all(str_detect(log$ip, regex_ipv4))</code></pre>
 <pre><code>## [1] TRUE</code></pre>
 <p>Toutes les adresses ont bien la forme d’une adresse IPv4.</p>
+</div>
+</div>
+<div id="partie-d-analyse-textuelle-davis-clients" class="section level1">
+<h1>Partie D : Analyse textuelle d’avis clients</h1>
+<div id="d1.-explorer-les-textes" class="section level2">
+<h2>D1. Explorer les textes</h2>
+<p><strong>a.</strong></p>
+<pre class="r"><code>avis &lt;- read_csv(&quot;data/avis_clients.csv&quot;) |&gt;
+  mutate(longueur = str_length(texte))
+
+mean(avis$longueur)</code></pre>
+<pre><code>## [1] 42.61667</code></pre>
+<pre class="r"><code>avis |&gt; slice_max(longueur, n = 1) |&gt; select(id_avis, produit, note, longueur, texte)</code></pre>
+<pre><code>## # A tibble: 1 × 5
+##   id_avis produit              note longueur texte                              
+##     &lt;dbl&gt; &lt;chr&gt;               &lt;dbl&gt;    &lt;int&gt; &lt;chr&gt;                              
+## 1      71 Chaussures trail X3     5       81 EXCELLENT RAPPORT QUALITÉ/PRIX ! T…</code></pre>
+<p>Un avis fait en moyenne 42.6 caractères ; le plus long en compte
+81.</p>
+<p><strong>b.</strong></p>
+<pre class="r"><code>avis &lt;- avis |&gt;
+  mutate(majuscules = texte == str_to_upper(texte) &amp; str_detect(texte, &quot;[[:alpha:]]&quot;))
+
+avis |&gt; group_by(majuscules) |&gt; summarise(n = n(), note_moyenne = mean(note))</code></pre>
+<pre><code>## # A tibble: 2 × 3
+##   majuscules     n note_moyenne
+##   &lt;lgl&gt;      &lt;int&gt;        &lt;dbl&gt;
+## 1 FALSE        164         3.85
+## 2 TRUE          16         3.94</code></pre>
+<p>16 avis sont écrits entièrement en majuscules. Leur note moyenne
+(3.94) est très proche de celle des autres (3.85) : contrairement à
+l’intuition, écrire en majuscules ne traduit pas ici un mécontentement
+particulier (on trouve aussi bien « TAILLE TROP PETITE ! » que «
+EXCELLENT RAPPORT QUALITÉ/PRIX ! »).</p>
+<p><strong>c.</strong></p>
+<pre class="r"><code>c(exclamation = sum(str_detect(avis$texte, &quot;!&quot;)),
+  emoticone   = sum(str_detect(avis$texte, &quot;:[()]&quot;)))</code></pre>
+<pre><code>## exclamation   emoticone 
+##          38          14</code></pre>
+<p>38 avis contiennent au moins un point d’exclamation et 14 un
+émoticône <code>:)</code> ou <code>:(</code>.</p>
+</div>
+<div id="d2.-découper-en-mots" class="section level2">
+<h2>D2. Découper en mots</h2>
+<p><strong>a.</strong></p>
+<pre class="r"><code>mots &lt;- avis |&gt;
+  mutate(mot = str_split(str_to_lower(texte), &quot;[^[:alpha:]&#39;]+&quot;)) |&gt;
+  unnest(mot) |&gt;
+  filter(mot != &quot;&quot;) |&gt;
+  select(id_avis, produit, note, mot)
+mots</code></pre>
+<pre><code>## # A tibble: 1,169 × 4
+##    id_avis produit             note mot       
+##      &lt;dbl&gt; &lt;chr&gt;              &lt;dbl&gt; &lt;chr&gt;     
+##  1       1 Veste pluie légère     1 trop      
+##  2       1 Veste pluie légère     1 cher      
+##  3       1 Veste pluie légère     1 pour      
+##  4       1 Veste pluie légère     1 ce        
+##  5       1 Veste pluie légère     1 que       
+##  6       1 Veste pluie légère     1 c&#39;est     
+##  7       2 Gourde isotherme       5 je        
+##  8       2 Gourde isotherme       5 recommande
+##  9       2 Gourde isotherme       5 et        
+## 10       2 Gourde isotherme       5 excellent 
+## # ℹ 1,159 more rows</code></pre>
+<p><strong>b.</strong></p>
+<pre class="r"><code>c(total = nrow(mots), distincts = n_distinct(mots$mot))</code></pre>
+<pre><code>##     total distincts 
+##      1169        64</code></pre>
+<p>Les avis contiennent 1169 mots au total, dont 64 distincts : le
+vocabulaire est très répétitif.</p>
+<p><strong>c.</strong></p>
+<pre class="r"><code>mots |&gt; count(mot, sort = TRUE) |&gt; head(10)</code></pre>
+<pre><code>## # A tibble: 10 × 2
+##    mot            n
+##    &lt;chr&gt;      &lt;int&gt;
+##  1 et            72
+##  2 qualité       54
+##  3 la            53
+##  4 satisfait     38
+##  5 très          38
+##  6 le            37
+##  7 livraison     37
+##  8 je            36
+##  9 recommande    36
+## 10 pour          34</code></pre>
+<pre class="r"><code>mots_vides &lt;- c(&quot;le&quot;, &quot;la&quot;, &quot;les&quot;, &quot;l&#39;&quot;, &quot;un&quot;, &quot;une&quot;, &quot;des&quot;, &quot;du&quot;, &quot;de&quot;, &quot;d&#39;&quot;, &quot;d&#39;un&quot;,
+                &quot;au&quot;, &quot;aux&quot;, &quot;à&quot;, &quot;en&quot;, &quot;pour&quot;, &quot;par&quot;, &quot;sur&quot;, &quot;dans&quot;, &quot;avec&quot;, &quot;dès&quot;,
+                &quot;et&quot;, &quot;ou&quot;, &quot;mais&quot;, &quot;ce&quot;, &quot;c&#39;est&quot;, &quot;que&quot;, &quot;qui&quot;, &quot;je&quot;, &quot;j&#39;ai&quot;, &quot;il&quot;,
+                &quot;elle&quot;, &quot;on&quot;, &quot;se&quot;, &quot;s&#39;est&quot;, &quot;est&quot;, &quot;ne&quot;, &quot;n&#39;est&quot;, &quot;mon&quot;, &quot;ma&quot;, &quot;mes&quot;)
+
+mots |&gt; filter(!mot %in% mots_vides) |&gt; count(mot, sort = TRUE) |&gt; head(10)</code></pre>
+<pre><code>## # A tibble: 10 × 2
+##    mot            n
+##    &lt;chr&gt;      &lt;int&gt;
+##  1 qualité       54
+##  2 satisfait     38
+##  3 très          38
+##  4 livraison     37
+##  5 recommande    36
+##  6 conforme      32
+##  7 rapide        30
+##  8 produit       29
+##  9 super         29
+## 10 bonne         28</code></pre>
+<p>Sans les mots vides, les mots les plus fréquents deviennent porteurs
+de sens (qualité, satisfait, trop, recommande…).</p>
 </div>
 </div>
 

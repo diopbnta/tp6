@@ -526,3 +526,75 @@ all(str_detect(log$ip, regex_ipv4))
 
 Toutes les adresses ont bien la forme d'une adresse IPv4.
 
+
+# Partie D : Analyse textuelle d'avis clients
+
+## D1. Explorer les textes
+
+**a.**
+
+```{r}
+avis <- read_csv("data/avis_clients.csv") |>
+  mutate(longueur = str_length(texte))
+
+mean(avis$longueur)
+avis |> slice_max(longueur, n = 1) |> select(id_avis, produit, note, longueur, texte)
+```
+
+Un avis fait en moyenne `r round(mean(avis$longueur), 1)` caractères ; le plus long en compte `r max(avis$longueur)`.
+
+**b.**
+
+```{r}
+avis <- avis |>
+  mutate(majuscules = texte == str_to_upper(texte) & str_detect(texte, "[[:alpha:]]"))
+
+avis |> group_by(majuscules) |> summarise(n = n(), note_moyenne = mean(note))
+```
+
+`r sum(avis$majuscules)` avis sont écrits entièrement en majuscules. Leur note moyenne (`r round(mean(avis$note[avis$majuscules]), 2)`) est très proche de celle des autres (`r round(mean(avis$note[!avis$majuscules]), 2)`) : contrairement à l'intuition, écrire en majuscules ne traduit pas ici un mécontentement particulier (on trouve aussi bien « TAILLE TROP PETITE ! » que « EXCELLENT RAPPORT QUALITÉ/PRIX ! »).
+
+**c.**
+
+```{r}
+c(exclamation = sum(str_detect(avis$texte, "!")),
+  emoticone   = sum(str_detect(avis$texte, ":[()]")))
+```
+
+`r sum(str_detect(avis$texte, "!"))` avis contiennent au moins un point d'exclamation et `r sum(str_detect(avis$texte, ":[()]"))` un émoticône `:)` ou `:(`.
+
+## D2. Découper en mots
+
+**a.**
+
+```{r}
+mots <- avis |>
+  mutate(mot = str_split(str_to_lower(texte), "[^[:alpha:]']+")) |>
+  unnest(mot) |>
+  filter(mot != "") |>
+  select(id_avis, produit, note, mot)
+mots
+```
+
+**b.**
+
+```{r}
+c(total = nrow(mots), distincts = n_distinct(mots$mot))
+```
+
+Les avis contiennent `r nrow(mots)` mots au total, dont `r n_distinct(mots$mot)` distincts : le vocabulaire est très répétitif.
+
+**c.**
+
+```{r}
+mots |> count(mot, sort = TRUE) |> head(10)
+
+mots_vides <- c("le", "la", "les", "l'", "un", "une", "des", "du", "de", "d'", "d'un",
+                "au", "aux", "à", "en", "pour", "par", "sur", "dans", "avec", "dès",
+                "et", "ou", "mais", "ce", "c'est", "que", "qui", "je", "j'ai", "il",
+                "elle", "on", "se", "s'est", "est", "ne", "n'est", "mon", "ma", "mes")
+
+mots |> filter(!mot %in% mots_vides) |> count(mot, sort = TRUE) |> head(10)
+```
+
+Sans les mots vides, les mots les plus fréquents deviennent porteurs de sens (qualité, satisfait, trop, recommande…).
