@@ -365,6 +365,7 @@ Fonctions de texte et premières regex</a>
 d’exécuter</a></li>
 <li><a href="#a2.-mettre-en-forme" id="toc-a2.-mettre-en-forme">A2.
 Mettre en forme</a></li>
+<li><a href="#a3.-des-codes-produits" id="toc-a3.-des-codes-produits">A3. Des codes produits</a></li>
 </ul></li>
 </ul>
 </div>
@@ -481,6 +482,45 @@ translittération <code>Latin-ASCII</code> du package
   str_replace_all(&quot; &quot;, &quot;-&quot;)</code></pre>
 <pre><code>## [1] &quot;PARIS&quot;           &quot;SAINT-ETIENNE&quot;   &quot;AIX-EN-PROVENCE&quot; &quot;LE-MANS&quot;        
 ## [5] &quot;NIMES&quot;</code></pre>
+</div>
+<div id="a3.-des-codes-produits" class="section level2">
+<h2>A3. Des codes produits</h2>
+<pre class="r"><code>codes &lt;- c(&quot;FR-2024-00123&quot;, &quot;FR-2025-04567&quot;, &quot;DE-2025-00089&quot;, &quot;fr-2023-1&quot;, &quot;FR2025-00999&quot;,
+           &quot;IT-2024-12345&quot;, &quot;FR-2026-00042&quot;, &quot;ES-2025-0071&quot;)</code></pre>
+<p><strong>a.</strong></p>
+<pre class="r"><code>regex_code &lt;- &quot;^([A-Z]{2})-(\\d{4})-(\\d{5})$&quot;
+codes_valides &lt;- str_subset(codes, regex_code)
+str_subset(codes, regex_code, negate = TRUE)   # codes invalides</code></pre>
+<pre><code>## [1] &quot;fr-2023-1&quot;    &quot;FR2025-00999&quot; &quot;ES-2025-0071&quot;</code></pre>
+<p>Trois codes sont invalides : <code>fr-2023-1</code> (minuscules et
+numéro trop court), <code>FR2025-00999</code> (tiret manquant) et
+<code>ES-2025-0071</code> (numéro sur 4 chiffres). Les ancres
+<code>^</code> et <code>$</code> sont indispensables pour imposer que
+<strong>toute</strong> la chaîne respecte le format.</p>
+<p><strong>b.</strong> <code>str_match()</code> renvoie une matrice : la
+1re colonne est la correspondance complète, les suivantes les groupes
+capturants.</p>
+<pre class="r"><code>m &lt;- str_match(codes_valides, regex_code)
+refs &lt;- tibble(pays = m[, 2], annee = as.integer(m[, 3]), numero = m[, 4])
+refs</code></pre>
+<pre><code>## # A tibble: 5 × 3
+##   pays  annee numero
+##   &lt;chr&gt; &lt;int&gt; &lt;chr&gt; 
+## 1 FR     2024 00123 
+## 2 FR     2025 04567 
+## 3 DE     2025 00089 
+## 4 IT     2024 12345 
+## 5 FR     2026 00042</code></pre>
+<p><strong>c.</strong></p>
+<pre class="r"><code>refs |&gt; count(pays, sort = TRUE)</code></pre>
+<pre><code>## # A tibble: 3 × 2
+##   pays      n
+##   &lt;chr&gt; &lt;int&gt;
+## 1 FR        3
+## 2 DE        1
+## 3 IT        1</code></pre>
+<p>Sur les 5 codes valides, 3 sont français, un est allemand et un
+italien.</p>
 </div>
 </div>
 

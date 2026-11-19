@@ -74,3 +74,36 @@ villes_propres |>
   str_to_upper() |>
   str_replace_all(" ", "-")
 ```
+
+## A3. Des codes produits
+
+```{r}
+codes <- c("FR-2024-00123", "FR-2025-04567", "DE-2025-00089", "fr-2023-1", "FR2025-00999",
+           "IT-2024-12345", "FR-2026-00042", "ES-2025-0071")
+```
+
+**a.**
+
+```{r}
+regex_code <- "^([A-Z]{2})-(\\d{4})-(\\d{5})$"
+codes_valides <- str_subset(codes, regex_code)
+str_subset(codes, regex_code, negate = TRUE)   # codes invalides
+```
+
+Trois codes sont invalides : `fr-2023-1` (minuscules et numéro trop court), `FR2025-00999` (tiret manquant) et `ES-2025-0071` (numéro sur 4 chiffres). Les ancres `^` et `$` sont indispensables pour imposer que **toute** la chaîne respecte le format.
+
+**b.** `str_match()` renvoie une matrice : la 1re colonne est la correspondance complète, les suivantes les groupes capturants.
+
+```{r}
+m <- str_match(codes_valides, regex_code)
+refs <- tibble(pays = m[, 2], annee = as.integer(m[, 3]), numero = m[, 4])
+refs
+```
+
+**c.**
+
+```{r}
+refs |> count(pays, sort = TRUE)
+```
+
+Sur les `r length(codes_valides)` codes valides, `r sum(refs$pays == "FR")` sont français, un est allemand et un italien.
