@@ -107,3 +107,22 @@ refs |> count(pays, sort = TRUE)
 ```
 
 Sur les `r length(codes_valides)` codes valides, `r sum(refs$pays == "FR")` sont français, un est allemand et un italien.
+
+
+## A4. Déboguer des regex
+
+```{r}
+x <- c("rapport.pdf", "photo.PNG", "notes.pdf.bak", "data_pdf")
+```
+
+1. `".pdf"` : le point est un joker et le motif n'est pas ancré, donc `"notes.pdf.bak"` et `"data_pdf"` sont aussi retenus. Il faut échapper le point et ancrer en fin de chaîne : `"\\.pdf$"` (avec `ignore_case` pour accepter aussi `.PDF`).
+2. `"^\\d+$"` impose que **toute** la chaîne soit composée de chiffres ; or elle contient du texte. Pour savoir si elle *contient* un nombre, on retire les ancres : `"\\d+"`.
+3. Cette instruction est **correcte** : elle renvoie bien `"15/01/2026"` (les groupes 3, 2 et 1 sont réordonnés). Le piège était de croire qu'il y avait une erreur.
+4. Les regex sont sensibles à la casse : `"Photo"` n'est pas détecté. On utilise `regex(..., ignore_case = TRUE)`.
+
+```{r}
+str_subset(x, regex("\\.pdf$", ignore_case = TRUE))                # 1
+str_detect("prix : 1500 €", "\\d+")                                # 2
+str_replace("2026-01-15", "(\\d+)-(\\d+)-(\\d+)", "\\3/\\2/\\1")   # 3 (déjà correct)
+str_detect(c("Photo", "photo"), regex("^photo", ignore_case = TRUE)) # 4
+```

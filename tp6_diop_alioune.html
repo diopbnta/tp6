@@ -366,6 +366,7 @@ d’exécuter</a></li>
 <li><a href="#a2.-mettre-en-forme" id="toc-a2.-mettre-en-forme">A2.
 Mettre en forme</a></li>
 <li><a href="#a3.-des-codes-produits" id="toc-a3.-des-codes-produits">A3. Des codes produits</a></li>
+<li><a href="#a4.-d%C3%A9boguer-des-regex" id="toc-a4.-déboguer-des-regex">A4. Déboguer des regex</a></li>
 </ul></li>
 </ul>
 </div>
@@ -521,6 +522,34 @@ refs</code></pre>
 ## 3 IT        1</code></pre>
 <p>Sur les 5 codes valides, 3 sont français, un est allemand et un
 italien.</p>
+</div>
+<div id="a4.-déboguer-des-regex" class="section level2">
+<h2>A4. Déboguer des regex</h2>
+<pre class="r"><code>x &lt;- c(&quot;rapport.pdf&quot;, &quot;photo.PNG&quot;, &quot;notes.pdf.bak&quot;, &quot;data_pdf&quot;)</code></pre>
+<ol style="list-style-type: decimal">
+<li><code>&quot;.pdf&quot;</code> : le point est un joker et le motif n’est pas
+ancré, donc <code>&quot;notes.pdf.bak&quot;</code> et <code>&quot;data_pdf&quot;</code> sont
+aussi retenus. Il faut échapper le point et ancrer en fin de chaîne :
+<code>&quot;\\.pdf$&quot;</code> (avec <code>ignore_case</code> pour accepter
+aussi <code>.PDF</code>).</li>
+<li><code>&quot;^\\d+$&quot;</code> impose que <strong>toute</strong> la chaîne
+soit composée de chiffres ; or elle contient du texte. Pour savoir si
+elle <em>contient</em> un nombre, on retire les ancres :
+<code>&quot;\\d+&quot;</code>.</li>
+<li>Cette instruction est <strong>correcte</strong> : elle renvoie bien
+<code>&quot;15/01/2026&quot;</code> (les groupes 3, 2 et 1 sont réordonnés). Le
+piège était de croire qu’il y avait une erreur.</li>
+<li>Les regex sont sensibles à la casse : <code>&quot;Photo&quot;</code> n’est pas
+détecté. On utilise <code>regex(..., ignore_case = TRUE)</code>.</li>
+</ol>
+<pre class="r"><code>str_subset(x, regex(&quot;\\.pdf$&quot;, ignore_case = TRUE))                # 1</code></pre>
+<pre><code>## [1] &quot;rapport.pdf&quot;</code></pre>
+<pre class="r"><code>str_detect(&quot;prix : 1500 €&quot;, &quot;\\d+&quot;)                                # 2</code></pre>
+<pre><code>## [1] TRUE</code></pre>
+<pre class="r"><code>str_replace(&quot;2026-01-15&quot;, &quot;(\\d+)-(\\d+)-(\\d+)&quot;, &quot;\\3/\\2/\\1&quot;)   # 3 (déjà correct)</code></pre>
+<pre><code>## [1] &quot;15/01/2026&quot;</code></pre>
+<pre class="r"><code>str_detect(c(&quot;Photo&quot;, &quot;photo&quot;), regex(&quot;^photo&quot;, ignore_case = TRUE)) # 4</code></pre>
+<pre><code>## [1] TRUE TRUE</code></pre>
 </div>
 </div>
 
