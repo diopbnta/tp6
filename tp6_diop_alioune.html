@@ -363,6 +363,8 @@ Fonctions de texte et premières regex</a>
 <ul>
 <li><a href="#a1.-pr%C3%A9dire-avant-dex%C3%A9cuter" id="toc-a1.-prédire-avant-dexécuter">A1. Prédire avant
 d’exécuter</a></li>
+<li><a href="#a2.-mettre-en-forme" id="toc-a2.-mettre-en-forme">A2.
+Mettre en forme</a></li>
 </ul></li>
 </ul>
 </div>
@@ -449,6 +451,36 @@ toutes) ; <code>str_extract()</code> ne renvoie que la première
 correspondance ; enfin <code>str_split()</code> renvoie une liste (un
 élément par chaîne en entrée) et deux virgules consécutives produisent
 une chaîne vide <code>&quot;&quot;</code>.</p>
+</div>
+<div id="a2.-mettre-en-forme" class="section level2">
+<h2>A2. Mettre en forme</h2>
+<pre class="r"><code>villes &lt;- c(&quot;  paris&quot;, &quot;SAINT-ÉTIENNE &quot;, &quot;aix-en-provence&quot;, &quot;Le  Mans&quot;, &quot;nîmes&quot;)</code></pre>
+<p><strong>a.</strong> <code>str_squish()</code> retire les espaces en
+début et fin et réduit les espaces multiples à un seul.</p>
+<pre class="r"><code>villes_propres &lt;- villes |&gt; str_squish() |&gt; str_to_title()
+villes_propres</code></pre>
+<pre><code>## [1] &quot;Paris&quot;           &quot;Saint-Étienne&quot;   &quot;Aix-En-Provence&quot; &quot;Le Mans&quot;        
+## [5] &quot;Nîmes&quot;</code></pre>
+<p>Le résultat <code>&quot;Aix-En-Provence&quot;</code> n’est <strong>pas
+correct</strong> : <code>str_to_title()</code> met une majuscule après
+chaque séparateur, y compris le tiret, alors que l’orthographe correcte
+est « Aix-en-Provence » (les mots de liaison restent en minuscules).
+Pour « Saint-Étienne », en revanche, c’est correct.</p>
+<p><strong>b.</strong></p>
+<pre class="r"><code>str_c(str_pad(villes_propres, width = 20, side = &quot;left&quot;),
+      &quot; (&quot;, str_length(villes_propres), &quot;)&quot;)</code></pre>
+<pre><code>## [1] &quot;               Paris (5)&quot;  &quot;       Saint-Étienne (13)&quot;
+## [3] &quot;     Aix-En-Provence (15)&quot; &quot;             Le Mans (7)&quot; 
+## [5] &quot;               Nîmes (5)&quot;</code></pre>
+<p><strong>c.</strong> Pour retirer les accents, on utilise la
+translittération <code>Latin-ASCII</code> du package
+<code>stringi</code> (sur lequel repose <code>stringr</code>).</p>
+<pre class="r"><code>villes_propres |&gt;
+  stringi::stri_trans_general(&quot;Latin-ASCII&quot;) |&gt;
+  str_to_upper() |&gt;
+  str_replace_all(&quot; &quot;, &quot;-&quot;)</code></pre>
+<pre><code>## [1] &quot;PARIS&quot;           &quot;SAINT-ETIENNE&quot;   &quot;AIX-EN-PROVENCE&quot; &quot;LE-MANS&quot;        
+## [5] &quot;NIMES&quot;</code></pre>
 </div>
 </div>
 

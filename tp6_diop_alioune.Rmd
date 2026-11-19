@@ -42,3 +42,35 @@ str_split("a,b,,c", ",")
 ```
 
 Les résultats correspondent aux prédictions. Les points à retenir : `nchar()` compte les caractères (les lettres accentuées comptent pour 1) **et** l'espace final ; le `.` d'une regex est un joker qu'il faut échapper (`\\.`) pour désigner un vrai point ; `str_replace()` ne remplace que la première occurrence (`str_replace_all()` les remplacerait toutes) ; `str_extract()` ne renvoie que la première correspondance ; enfin `str_split()` renvoie une liste (un élément par chaîne en entrée) et deux virgules consécutives produisent une chaîne vide `""`.
+
+
+## A2. Mettre en forme
+
+```{r}
+villes <- c("  paris", "SAINT-ÉTIENNE ", "aix-en-provence", "Le  Mans", "nîmes")
+```
+
+**a.** `str_squish()` retire les espaces en début et fin et réduit les espaces multiples à un seul.
+
+```{r}
+villes_propres <- villes |> str_squish() |> str_to_title()
+villes_propres
+```
+
+Le résultat `"Aix-En-Provence"` n'est **pas correct** : `str_to_title()` met une majuscule après chaque séparateur, y compris le tiret, alors que l'orthographe correcte est « Aix-en-Provence » (les mots de liaison restent en minuscules). Pour « Saint-Étienne », en revanche, c'est correct.
+
+**b.**
+
+```{r}
+str_c(str_pad(villes_propres, width = 20, side = "left"),
+      " (", str_length(villes_propres), ")")
+```
+
+**c.** Pour retirer les accents, on utilise la translittération `Latin-ASCII` du package `stringi` (sur lequel repose `stringr`).
+
+```{r}
+villes_propres |>
+  stringi::stri_trans_general("Latin-ASCII") |>
+  str_to_upper() |>
+  str_replace_all(" ", "-")
+```
