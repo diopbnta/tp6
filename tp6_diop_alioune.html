@@ -399,6 +399,10 @@ textuelle d’avis clients</a>
 <ul>
 <li><a href="#d1.-explorer-les-textes" id="toc-d1.-explorer-les-textes">D1. Explorer les textes</a></li>
 <li><a href="#d2.-d%C3%A9couper-en-mots" id="toc-d2.-découper-en-mots">D2. Découper en mots</a></li>
+<li><a href="#d3.-des-mots-qui-distinguent-les-notes" id="toc-d3.-des-mots-qui-distinguent-les-notes">D3. Des mots qui
+distinguent les notes</a></li>
+<li><a href="#d4.-un-score-de-sentiment" id="toc-d4.-un-score-de-sentiment">D4. Un score de sentiment</a></li>
+<li><a href="#d5.-synth%C3%A8se-par-produit" id="toc-d5.-synthèse-par-produit">D5. Synthèse par produit</a></li>
 </ul></li>
 </ul>
 </div>
@@ -1489,6 +1493,266 @@ mots |&gt; filter(!mot %in% mots_vides) |&gt; count(mot, sort = TRUE) |&gt; head
 ## 10 bonne         28</code></pre>
 <p>Sans les mots vides, les mots les plus fréquents deviennent porteurs
 de sens (qualité, satisfait, trop, recommande…).</p>
+</div>
+<div id="d3.-des-mots-qui-distinguent-les-notes" class="section level2">
+<h2>D3. Des mots qui distinguent les notes</h2>
+<p><strong>a.</strong></p>
+<pre class="r"><code>mots_utiles &lt;- mots |&gt;
+  filter(!mot %in% mots_vides) |&gt;
+  mutate(categorie = case_when(note &lt;= 2 ~ &quot;négatif&quot;,
+                               note == 3 ~ &quot;neutre&quot;,
+                               .default = &quot;positif&quot;))
+
+mots_utiles |&gt;
+  count(categorie, mot) |&gt;
+  group_by(categorie) |&gt;
+  slice_max(n, n = 5, with_ties = FALSE) |&gt;
+  ungroup()</code></pre>
+<pre><code>## # A tibble: 15 × 3
+##    categorie mot            n
+##    &lt;chr&gt;     &lt;chr&gt;      &lt;int&gt;
+##  1 neutre    fait          11
+##  2 neutre    travail       11
+##  3 neutre    lourd         10
+##  4 neutre    peu           10
+##  5 neutre    correct        9
+##  6 négatif   pas           14
+##  7 négatif   trop          13
+##  8 négatif   recommande     9
+##  9 négatif   petite         8
+## 10 négatif   taille         8
+## 11 positif   qualité       50
+## 12 positif   satisfait     38
+## 13 positif   très          38
+## 14 positif   bonne         28
+## 15 positif   parfait       28</code></pre>
+<p>Les avis positifs parlent de qualité et de satisfaction (« qualité »,
+« satisfait », « bonne », « parfait »), les avis neutres d’un produit
+qui « fait le travail » mais est « un peu lourd », et les avis négatifs
+de taille (« taille », « petite ») et de prix (« trop »). On remarque
+que « recommande » ressort parmi les avis négatifs : il provient de « je
+<strong>ne</strong> recommande <strong>pas</strong> », d’où la présence
+de « pas » en tête ; compter les mots isolément fait perdre la
+négation.</p>
+<p><strong>b.</strong> Chaque avis n’est compté qu’une fois par mot
+(<code>distinct()</code>), pour calculer la note moyenne <strong>des
+avis</strong> qui contiennent le mot.</p>
+<pre class="r"><code>frequents &lt;- mots_utiles |&gt; count(mot) |&gt; filter(n &gt;= 10)
+
+note_par_mot &lt;- mots_utiles |&gt;
+  semi_join(frequents, by = &quot;mot&quot;) |&gt;
+  distinct(id_avis, mot, note) |&gt;
+  group_by(mot) |&gt;
+  summarise(nb_avis = n(), note_moyenne = mean(note)) |&gt;
+  arrange(desc(note_moyenne))
+
+head(note_par_mot, 6)</code></pre>
+<pre><code>## # A tibble: 6 × 3
+##   mot       nb_avis note_moyenne
+##   &lt;chr&gt;       &lt;int&gt;        &lt;dbl&gt;
+## 1 léger          21         4.71
+## 2 solide         21         4.71
+## 3 satisfait      38         4.66
+## 4 très           38         4.66
+## 5 bonne          28         4.64
+## 6 parfait        28         4.61</code></pre>
+<pre class="r"><code>tail(note_par_mot, 6)</code></pre>
+<pre><code>## # A tibble: 6 × 3
+##   mot     nb_avis note_moyenne
+##   &lt;chr&gt;     &lt;int&gt;        &lt;dbl&gt;
+## 1 peu          10         3   
+## 2 travail      11         3   
+## 3 petite       11         1.82
+## 4 taille       11         1.82
+## 5 trop         16         1.75
+## 6 pas          12         1.42</code></pre>
+<p>Les mots associés aux meilleures notes sont léger, solide, satisfait,
+ceux associés aux pires notes sont pas, trop, taille.</p>
+</div>
+<div id="d4.-un-score-de-sentiment" class="section level2">
+<h2>D4. Un score de sentiment</h2>
+<pre class="r"><code>lex_positif &lt;- c(&quot;satisfait&quot;, &quot;excellent&quot;, &quot;rapide&quot;, &quot;confortable&quot;, &quot;recommande&quot;, &quot;parfait&quot;,
+                 &quot;solide&quot;, &quot;léger&quot;, &quot;super&quot;, &quot;bonne&quot;, &quot;conforme&quot;, &quot;correct&quot;)
+lex_negatif &lt;- c(&quot;déçu&quot;, &quot;petite&quot;, &quot;retard&quot;, &quot;cassé&quot;, &quot;étanche&quot;, &quot;injoignable&quot;, &quot;cher&quot;,
+                 &quot;fragile&quot;, &quot;mauvaise&quot;, &quot;lourd&quot;)</code></pre>
+<p><strong>a.</strong> Règle : avant de compter, on remplace « ne
+recommande pas » par « déconseille » (mot absent du lexique positif). On
+compte des <strong>mots entiers</strong> grâce aux bornes
+<code>\\b</code>, pour que « léger » ne soit pas trouvé dans « légère »
+par exemple.</p>
+<pre class="r"><code>motif_lexique &lt;- function(lex) str_c(&quot;\\b(&quot;, str_c(lex, collapse = &quot;|&quot;), &quot;)\\b&quot;)
+
+avis &lt;- avis |&gt;
+  mutate(
+    texte_norm = texte |&gt;
+      str_to_lower() |&gt;
+      str_replace_all(&quot;ne recommande pas&quot;, &quot;déconseille&quot;),
+    positifs = str_count(texte_norm, motif_lexique(lex_positif)),
+    negatifs = str_count(texte_norm, motif_lexique(lex_negatif)),
+    score = positifs - negatifs
+  )
+
+avis |&gt; select(id_avis, note, texte, positifs, negatifs, score) |&gt; head(8)</code></pre>
+<pre><code>## # A tibble: 8 × 6
+##   id_avis  note texte                                    positifs negatifs score
+##     &lt;dbl&gt; &lt;dbl&gt; &lt;chr&gt;                                       &lt;int&gt;    &lt;int&gt; &lt;int&gt;
+## 1       1     1 Trop cher pour ce que c&#39;est                     0        1    -1
+## 2       2     5 Je recommande et excellent rapport qual…        3        0     3
+## 3       3     5 Parfait pour la randonnée ! bonne quali…        2        0     2
+## 4       4     2 Pas étanche du tout                             0        1    -1
+## 5       5     5 Très satisfait. conforme à la descripti…        3        0     3
+## 6       6     5 Bonne qualité ! très satisfait ! livrai…        3        0     3
+## 7       7     1 TAILLE TROP PETITE ! JE NE RECOMMANDE P…        0        1    -1
+## 8       8     5 Excellent rapport qualité/prix                  1        0     1</code></pre>
+<p><strong>b.</strong></p>
+<pre class="r"><code>correlation &lt;- cor(avis$score, avis$note)
+correlation</code></pre>
+<pre><code>## [1] 0.8205517</code></pre>
+<pre class="r"><code>avis |&gt; group_by(note) |&gt; summarise(n = n(), score_moyen = mean(score))</code></pre>
+<pre><code>## # A tibble: 5 × 3
+##    note     n score_moyen
+##   &lt;dbl&gt; &lt;int&gt;       &lt;dbl&gt;
+## 1     1    16      -1.69 
+## 2     2    11      -1.64 
+## 3     3    27       0.259
+## 4     4    55       2    
+## 5     5    71       2.51</code></pre>
+<p>La corrélation entre le score et la note vaut 0.82 : malgré la
+simplicité des lexiques, le score est un assez bon indicateur, le score
+moyen augmentant régulièrement avec la note.</p>
+<p><strong>c.</strong></p>
+<pre class="r"><code>contradictions &lt;- avis |&gt;
+  filter((score &gt; 0 &amp; note &lt;= 2) | (score &lt; 0 &amp; note &gt;= 4)) |&gt;
+  select(id_avis, note, score, texte)
+contradictions</code></pre>
+<pre><code>## # A tibble: 0 × 4
+## # ℹ 4 variables: id_avis &lt;dbl&gt;, note &lt;dbl&gt;, score &lt;int&gt;, texte &lt;chr&gt;</code></pre>
+<pre class="r"><code>avis |&gt;
+  filter(str_detect(texte, fixed(&quot;:(&quot;))) |&gt;
+  select(id_avis, note, score, texte)</code></pre>
+<pre><code>## # A tibble: 7 × 4
+##   id_avis  note score texte                                                     
+##     &lt;dbl&gt; &lt;dbl&gt; &lt;int&gt; &lt;chr&gt;                                                     
+## 1       5     5     3 Très satisfait. conforme à la description. je recommande …
+## 2      58     4     2 Excellent rapport qualité/prix ! livraison rapide :(      
+## 3      84     5     4 Super produit ! je recommande ! solide et léger :(        
+## 4      98     4     1 JE RECOMMANDE :(                                          
+## 5     137     1    -1 Je ne recommande pas et déçu :(                           
+## 6     164     4     2 Confortable dès le premier jour ! très satisfait :(       
+## 7     177     5     2 LIVRAISON RAPIDE ET TRÈS SATISFAIT :(</code></pre>
+<p>Aucun avis ne présente de contradiction franche entre le score et la
+note (0 ligne) : grâce à la règle sur « ne recommande pas », le score
+suit bien le sens de la note. En revanche, sur les 7 avis contenant
+<code>:(</code>, 6 ont une note de 4 ou 5 et un score positif (« Super
+produit ! je recommande ! solide et léger :( ») : l’émoticône triste
+contredit le texte et la note. Elle n’est donc pas un indicateur fiable
+du sentiment, et notre score a raison de l’ignorer.</p>
+</div>
+<div id="d5.-synthèse-par-produit" class="section level2">
+<h2>D5. Synthèse par produit</h2>
+<pre class="r"><code>mot_negatif &lt;- mots |&gt;
+  filter(mot %in% lex_negatif) |&gt;
+  count(produit, mot) |&gt;
+  group_by(produit) |&gt;
+  slice_max(n, n = 1, with_ties = FALSE) |&gt;
+  ungroup() |&gt;
+  select(produit, mot_negatif = mot, nb_cite = n)
+
+synthese &lt;- avis |&gt;
+  group_by(produit) |&gt;
+  summarise(nb_avis = n(),
+            note_moyenne = mean(note),
+            score_moyen = mean(score),
+            part_negatifs = mean(note &lt;= 2)) |&gt;
+  left_join(mot_negatif, by = &quot;produit&quot;) |&gt;
+  arrange(desc(note_moyenne))
+
+synthese |&gt;
+  knitr::kable(digits = 2)</code></pre>
+<table>
+<colgroup>
+<col width="22%" />
+<col width="9%" />
+<col width="14%" />
+<col width="13%" />
+<col width="16%" />
+<col width="13%" />
+<col width="9%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">produit</th>
+<th align="right">nb_avis</th>
+<th align="right">note_moyenne</th>
+<th align="right">score_moyen</th>
+<th align="right">part_negatifs</th>
+<th align="left">mot_negatif</th>
+<th align="right">nb_cite</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">Tente 2 places</td>
+<td align="right">26</td>
+<td align="right">4.15</td>
+<td align="right">1.96</td>
+<td align="right">0.08</td>
+<td align="left">cher</td>
+<td align="right">2</td>
+</tr>
+<tr class="even">
+<td align="left">Raquette junior</td>
+<td align="right">27</td>
+<td align="right">4.00</td>
+<td align="right">1.74</td>
+<td align="right">0.19</td>
+<td align="left">petite</td>
+<td align="right">2</td>
+</tr>
+<tr class="odd">
+<td align="left">Chaussures trail X3</td>
+<td align="right">34</td>
+<td align="right">3.97</td>
+<td align="right">1.50</td>
+<td align="right">0.12</td>
+<td align="left">petite</td>
+<td align="right">3</td>
+</tr>
+<tr class="even">
+<td align="left">Gourde isotherme</td>
+<td align="right">30</td>
+<td align="right">3.83</td>
+<td align="right">1.20</td>
+<td align="right">0.17</td>
+<td align="left">petite</td>
+<td align="right">3</td>
+</tr>
+<tr class="odd">
+<td align="left">Sac à dos 30 L</td>
+<td align="right">29</td>
+<td align="right">3.69</td>
+<td align="right">0.69</td>
+<td align="right">0.17</td>
+<td align="left">lourd</td>
+<td align="right">4</td>
+</tr>
+<tr class="even">
+<td align="left">Veste pluie légère</td>
+<td align="right">34</td>
+<td align="right">3.56</td>
+<td align="right">1.32</td>
+<td align="right">0.18</td>
+<td align="left">lourd</td>
+<td align="right">3</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Conclusion pour le responsable produit.</strong> Le produit
+le mieux noté est « Tente 2 places », avec une note moyenne de 4.15 sur
+26 avis et seulement 8 % d’avis négatifs. À l’inverse, « Veste pluie
+légère » est le moins bien noté (3.56 de moyenne, 18 % d’avis négatifs)
+et son défaut le plus cité est « lourd » (3 mentions) : c’est le point à
+corriger en priorité.</p>
 </div>
 </div>
 

@@ -598,3 +598,127 @@ mots |> filter(!mot %in% mots_vides) |> count(mot, sort = TRUE) |> head(10)
 ```
 
 Sans les mots vides, les mots les plus fréquents deviennent porteurs de sens (qualité, satisfait, trop, recommande…).
+
+
+
+## D3. Des mots qui distinguent les notes
+
+**a.**
+
+```{r}
+mots_utiles <- mots |>
+  filter(!mot %in% mots_vides) |>
+  mutate(categorie = case_when(note <= 2 ~ "négatif",
+                               note == 3 ~ "neutre",
+                               .default = "positif"))
+
+mots_utiles |>
+  count(categorie, mot) |>
+  group_by(categorie) |>
+  slice_max(n, n = 5, with_ties = FALSE) |>
+  ungroup()
+```
+
+Les avis positifs parlent de qualité et de satisfaction (« qualité », « satisfait », « bonne », « parfait »), les avis neutres d'un produit qui « fait le travail » mais est « un peu lourd », et les avis négatifs de taille (« taille », « petite ») et de prix (« trop »). On remarque que « recommande » ressort parmi les avis négatifs : il provient de « je **ne** recommande **pas** », d'où la présence de « pas » en tête ; compter les mots isolément fait perdre la négation.
+
+**b.** Chaque avis n'est compté qu'une fois par mot (`distinct()`), pour calculer la note moyenne **des avis** qui contiennent le mot.
+
+```{r}
+frequents <- mots_utiles |> count(mot) |> filter(n >= 10)
+
+note_par_mot <- mots_utiles |>
+  semi_join(frequents, by = "mot") |>
+  distinct(id_avis, mot, note) |>
+  group_by(mot) |>
+  summarise(nb_avis = n(), note_moyenne = mean(note)) |>
+  arrange(desc(note_moyenne))
+
+head(note_par_mot, 6)
+tail(note_par_mot, 6)
+```
+
+Les mots associés aux meilleures notes sont `r str_c(head(note_par_mot$mot, 3), collapse = ", ")`, ceux associés aux pires notes sont `r str_c(rev(tail(note_par_mot$mot, 3)), collapse = ", ")`.
+
+## D4. Un score de sentiment
+
+```{r}
+lex_positif <- c("satisfait", "excellent", "rapide", "confortable", "recommande", "parfait",
+                 "solide", "léger", "super", "bonne", "conforme", "correct")
+lex_negatif <- c("déçu", "petite", "retard", "cassé", "étanche", "injoignable", "cher",
+                 "fragile", "mauvaise", "lourd")
+```
+
+**a.** Règle : avant de compter, on remplace « ne recommande pas » par « déconseille » (mot absent du lexique positif). On compte des **mots entiers** grâce aux bornes `\\b`, pour que « léger » ne soit pas trouvé dans « légère » par exemple.
+
+```{r}
+motif_lexique <- function(lex) str_c("\\b(", str_c(lex, collapse = "|"), ")\\b")
+
+avis <- avis |>
+  mutate(
+    texte_norm = texte |>
+      str_to_lower() |>
+      str_replace_all("ne recommande pas", "déconseille"),
+    positifs = str_count(texte_norm, motif_lexique(lex_positif)),
+    negatifs = str_count(texte_norm, motif_lexique(lex_negatif)),
+    score = positifs - negatifs
+  )
+
+avis |> select(id_avis, note, texte, positifs, negatifs, score) |> head(8)
+```
+
+**b.**
+
+```{r}
+correlation <- cor(avis$score, avis$note)
+correlation
+avis |> group_by(note) |> summarise(n = n(), score_moyen = mean(score))
+```
+
+La corrélation entre le score et la note vaut `r round(correlation, 2)` : malgré la simplicité des lexiques, le score est un assez bon indicateur, le score moyen augmentant régulièrement avec la note.
+
+**c.**
+
+```{r}
+contradictions <- avis |>
+  filter((score > 0 & note <= 2) | (score < 0 & note >= 4)) |>
+  select(id_avis, note, score, texte)
+contradictions
+
+avis |>
+  filter(str_detect(texte, fixed(":("))) |>
+  select(id_avis, note, score, texte)
+```
+
+Aucun avis ne présente de contradiction franche entre le score et la note (`r nrow(contradictions)` ligne) : grâce à la règle sur « ne recommande pas », le score suit bien le sens de la note. En revanche, sur les `r sum(str_detect(avis$texte, fixed(":(")))` avis contenant `:(`, `r sum(str_detect(avis$texte, fixed(":(")) & avis$note >= 4)` ont une note de 4 ou 5 et un score positif (« Super produit ! je recommande ! solide et léger :( ») : l'émoticône triste contredit le texte et la note. Elle n'est donc pas un indicateur fiable du sentiment, et notre score a raison de l'ignorer.
+
+## D5. Synthèse par produit
+
+```{r}
+mot_negatif <- mots |>
+  filter(mot %in% lex_negatif) |>
+  count(produit, mot) |>
+  group_by(produit) |>
+  slice_max(n, n = 1, with_ties = FALSE) |>
+  ungroup() |>
+  select(produit, mot_negatif = mot, nb_cite = n)
+
+synthese <- avis |>
+  group_by(produit) |>
+  summarise(nb_avis = n(),
+            note_moyenne = mean(note),
+            score_moyen = mean(score),
+            part_negatifs = mean(note <= 2)) |>
+  left_join(mot_negatif, by = "produit") |>
+  arrange(desc(note_moyenne))
+
+synthese |>
+  knitr::kable(digits = 2)
+```
+
+```{r include = FALSE}
+meilleur <- synthese |> slice(1)
+pire <- synthese |> slice(n())
+```
+
+**Conclusion pour le responsable produit.** Le produit le mieux noté est « `r meilleur$produit` », avec une note moyenne de `r round(meilleur$note_moyenne, 2)` sur `r meilleur$nb_avis` avis et seulement `r round(100 * meilleur$part_negatifs)` % d'avis négatifs. À l'inverse, « `r pire$produit` » est le moins bien noté (`r round(pire$note_moyenne, 2)` de moyenne, `r round(100 * pire$part_negatifs)` % d'avis négatifs) et son défaut le plus cité est « `r pire$mot_negatif` » (`r pire$nb_cite` mentions) : c'est le point à corriger en priorité.
+
