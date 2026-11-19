@@ -373,6 +373,9 @@ fichier de contacts</a>
 <ul>
 <li><a href="#b1.-explorer" id="toc-b1.-explorer">B1. Explorer</a></li>
 <li><a href="#b2.-les-noms" id="toc-b2.-les-noms">B2. Les noms</a></li>
+<li><a href="#b3.-les-e-mails" id="toc-b3.-les-e-mails">B3. Les
+e-mails</a></li>
+<li><a href="#b4.-les-t%C3%A9l%C3%A9phones" id="toc-b4.-les-téléphones">B4. Les téléphones</a></li>
 </ul></li>
 </ul>
 </div>
@@ -824,6 +827,104 @@ correctement.</p>
 ## 1 C019  wassim le goff Wassim LE GOFF  
 ## 2 C030  LE GOFF Nora   Le     GOFF NORA
 ## 3 C050  Léa Le Goff    Léa    LE GOFF</code></pre>
+</div>
+<div id="b3.-les-e-mails" class="section level2">
+<h2>B3. Les e-mails</h2>
+<p><strong>a.</strong></p>
+<pre class="r"><code>regex_email &lt;- &quot;^[a-z0-9._-]+@[a-z0-9-]+(\\.[a-z0-9-]+)*\\.[a-z]{2,4}$&quot;
+
+emails &lt;- noms |&gt;
+  mutate(email = str_to_lower(email),
+         email_valide = !is.na(email) &amp; str_detect(email, regex_email))</code></pre>
+<p>La regex impose : des caractères autorisés, <strong>un seul</strong>
+<code>@</code> (le domaine ne peut pas contenir de <code>@</code>), un
+nom de domaine, un point, puis 2 à 4 lettres en fin de chaîne.</p>
+<p><strong>b.</strong></p>
+<pre class="r"><code>invalides &lt;- emails |&gt; filter(!email_valide) |&gt; select(id, prenom, nom, email)
+invalides</code></pre>
+<pre><code>## # A tibble: 6 × 4
+##   id    prenom  nom     email                 
+##   &lt;chr&gt; &lt;chr&gt;   &lt;chr&gt;   &lt;chr&gt;                 
+## 1 C010  Moussa  WANG    moussa.wangyahoo.fr   
+## 2 C021  Pauline FALL    pauline.falloutlook.fr
+## 3 C026  Zoé     NDIAYE  zoe.ndiaye@outlook    
+## 4 C028  Ulysse  BLANC   ulysse.blanc@@free.fr 
+## 5 C041  Awa     MERCIER awa.mercier@gmail     
+## 6 C047  Nora    KONE    &lt;NA&gt;</code></pre>
+<p>6 e-mails sont invalides : 5 mal formés (<code>@</code> absent ou
+doublé, extension manquante) et 1 manquant.</p>
+<p><strong>c.</strong></p>
+<pre class="r"><code>domaines &lt;- emails |&gt;
+  filter(email_valide) |&gt;
+  mutate(domaine = str_extract(email, &quot;(?&lt;=@).+$&quot;)) |&gt;
+  count(domaine, sort = TRUE)
+domaines</code></pre>
+<pre><code>## # A tibble: 6 × 2
+##   domaine        n
+##   &lt;chr&gt;      &lt;int&gt;
+## 1 yahoo.fr      15
+## 2 free.fr       11
+## 3 lecnam.net     9
+## 4 outlook.fr     8
+## 5 orange.fr      7
+## 6 gmail.com      4</code></pre>
+<p>Le domaine le plus fréquent est yahoo.fr (15 contacts), suivi de
+free.fr (11).</p>
+</div>
+<div id="b4.-les-téléphones" class="section level2">
+<h2>B4. Les téléphones</h2>
+<p><strong>a.</strong></p>
+<pre class="r"><code>tels &lt;- emails |&gt;
+  mutate(
+    tel_chiffres = telephone |&gt;
+      str_replace(&quot;^\\+33\\s*(\\(0\\))?&quot;, &quot;0&quot;) |&gt;
+      str_remove_all(&quot;\\D&quot;),
+    tel = if_else(str_detect(tel_chiffres, &quot;^0\\d{9}$&quot;),
+                  str_replace(tel_chiffres, &quot;^(\\d{2})(\\d{2})(\\d{2})(\\d{2})(\\d{2})$&quot;,
+                              &quot;\\1 \\2 \\3 \\4 \\5&quot;),
+                  NA_character_)
+  )
+tels |&gt; select(id, telephone, tel) |&gt; slice(c(1, 5, 8, 9, 15, 16, 33, 44))</code></pre>
+<pre><code>## # A tibble: 8 × 3
+##   id    telephone         tel           
+##   &lt;chr&gt; &lt;chr&gt;             &lt;chr&gt;         
+## 1 C001  &lt;NA&gt;              &lt;NA&gt;          
+## 2 C005  0457052677        04 57 05 26 77
+## 3 C008  01.72.83.18.14    01 72 83 18 14
+## 4 C009  06-08-50-10-27    06 08 50 10 27
+## 5 C015  +33 6 59 38 97 79 06 59 38 97 79
+## 6 C016  +33(0)606357730   06 06 35 77 30
+## 7 C033  inconnu           &lt;NA&gt;          
+## 8 C044  06 12 34          &lt;NA&gt;</code></pre>
+<p><strong>b.</strong></p>
+<pre class="r"><code>n_valides &lt;- sum(!is.na(tels$tel))
+n_mobiles &lt;- sum(str_detect(tels$tel, &quot;^0[67]&quot;), na.rm = TRUE)
+c(valides = n_valides, mobiles = n_mobiles)</code></pre>
+<pre><code>## valides mobiles 
+##      57      36</code></pre>
+<p>Il y a 57 numéros valides sur 60, dont 36 mobiles (06 ou 07). Les 3
+autres sont manquants ou invalides (<code>inconnu</code>,
+<code>06 12 34</code>).</p>
+<p><strong>c.</strong></p>
+<pre class="r"><code>zones &lt;- tels |&gt;
+  mutate(indicatif = str_sub(tel, 1, 2)) |&gt;
+  filter(indicatif %in% c(&quot;01&quot;, &quot;02&quot;, &quot;03&quot;, &quot;04&quot;, &quot;05&quot;)) |&gt;
+  mutate(zone = case_when(
+    indicatif == &quot;01&quot; ~ &quot;Île-de-France&quot;,
+    indicatif == &quot;02&quot; ~ &quot;Nord-Ouest&quot;,
+    indicatif == &quot;03&quot; ~ &quot;Nord-Est&quot;,
+    indicatif == &quot;04&quot; ~ &quot;Sud-Est&quot;,
+    indicatif == &quot;05&quot; ~ &quot;Sud-Ouest&quot;
+  )) |&gt;
+  count(indicatif, zone)
+zones</code></pre>
+<pre><code>## # A tibble: 2 × 3
+##   indicatif zone              n
+##   &lt;chr&gt;     &lt;chr&gt;         &lt;int&gt;
+## 1 01        Île-de-France    11
+## 2 04        Sud-Est          10</code></pre>
+<p>Les 21 numéros fixes se partagent entre Île-de-France (11) et Sud-Est
+(10) : aucun numéro ne commence par 02, 03 ou 05.</p>
 </div>
 </div>
 

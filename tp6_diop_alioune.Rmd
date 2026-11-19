@@ -208,3 +208,87 @@ noms |> filter(str_detect(nom, " ")) |> select(id, nom_brut, prenom, nom)
 ```
 
 
+
+## B3. Les e-mails
+
+**a.**
+
+```{r}
+regex_email <- "^[a-z0-9._-]+@[a-z0-9-]+(\\.[a-z0-9-]+)*\\.[a-z]{2,4}$"
+
+emails <- noms |>
+  mutate(email = str_to_lower(email),
+         email_valide = !is.na(email) & str_detect(email, regex_email))
+```
+
+La regex impose : des caractères autorisés, **un seul** `@` (le domaine ne peut pas contenir de `@`), un nom de domaine, un point, puis 2 à 4 lettres en fin de chaîne.
+
+**b.**
+
+```{r}
+invalides <- emails |> filter(!email_valide) |> select(id, prenom, nom, email)
+invalides
+```
+
+`r nrow(invalides)` e-mails sont invalides : `r sum(!is.na(invalides$email))` mal formés (`@` absent ou doublé, extension manquante) et `r sum(is.na(invalides$email))` manquant.
+
+**c.**
+
+```{r}
+domaines <- emails |>
+  filter(email_valide) |>
+  mutate(domaine = str_extract(email, "(?<=@).+$")) |>
+  count(domaine, sort = TRUE)
+domaines
+```
+
+Le domaine le plus fréquent est `r domaines$domaine[1]` (`r domaines$n[1]` contacts), suivi de `r domaines$domaine[2]` (`r domaines$n[2]`).
+
+## B4. Les téléphones
+
+**a.**
+
+```{r}
+tels <- emails |>
+  mutate(
+    tel_chiffres = telephone |>
+      str_replace("^\\+33\\s*(\\(0\\))?", "0") |>
+      str_remove_all("\\D"),
+    tel = if_else(str_detect(tel_chiffres, "^0\\d{9}$"),
+                  str_replace(tel_chiffres, "^(\\d{2})(\\d{2})(\\d{2})(\\d{2})(\\d{2})$",
+                              "\\1 \\2 \\3 \\4 \\5"),
+                  NA_character_)
+  )
+tels |> select(id, telephone, tel) |> slice(c(1, 5, 8, 9, 15, 16, 33, 44))
+```
+
+**b.**
+
+```{r}
+n_valides <- sum(!is.na(tels$tel))
+n_mobiles <- sum(str_detect(tels$tel, "^0[67]"), na.rm = TRUE)
+c(valides = n_valides, mobiles = n_mobiles)
+```
+
+Il y a `r n_valides` numéros valides sur `r nrow(tels)`, dont `r n_mobiles` mobiles (06 ou 07). Les `r nrow(tels) - n_valides` autres sont manquants ou invalides (`inconnu`, `06 12 34`).
+
+**c.**
+
+```{r}
+zones <- tels |>
+  mutate(indicatif = str_sub(tel, 1, 2)) |>
+  filter(indicatif %in% c("01", "02", "03", "04", "05")) |>
+  mutate(zone = case_when(
+    indicatif == "01" ~ "Île-de-France",
+    indicatif == "02" ~ "Nord-Ouest",
+    indicatif == "03" ~ "Nord-Est",
+    indicatif == "04" ~ "Sud-Est",
+    indicatif == "05" ~ "Sud-Ouest"
+  )) |>
+  count(indicatif, zone)
+zones
+```
+
+Les `r sum(zones$n)` numéros fixes se partagent entre `r zones$zone[1]` (`r zones$n[1]`) et `r zones$zone[2]` (`r zones$n[2]`) : aucun numéro ne commence par 02, 03 ou 05.
+
+
