@@ -364,3 +364,44 @@ n_complets
 
 `r n_complets` contacts sur `r nrow(contacts_propres)` sont complets (aucune valeur manquante) ; les autres ont un e-mail invalide ou un téléphone manquant ou invalide.
 
+
+
+# Partie C : Analyser le journal d'un serveur
+
+## C1. Lire et compter
+
+```{r}
+lignes <- read_lines("data/journal_serveur.log")
+length(lignes)
+
+c(INFO  = sum(str_detect(lignes, "\\[INFO\\]")),
+  WARN  = sum(str_detect(lignes, "\\[WARN\\]")),
+  ERROR = sum(str_detect(lignes, "\\[ERROR\\]")))
+```
+
+Le journal compte `r length(lignes)` lignes : `r sum(str_detect(lignes, "\\[INFO\\]"))` INFO, `r sum(str_detect(lignes, "\\[WARN\\]"))` WARN et `r sum(str_detect(lignes, "\\[ERROR\\]"))` ERROR. Les crochets doivent être échappés car `[...]` désigne une classe de caractères.
+
+## C2. Structurer le journal
+
+```{r}
+champ <- function(x, motif) str_match(x, motif)[, 2]   # 1er groupe capturant
+
+log <- tibble(ligne = lignes) |>
+  mutate(
+    horodatage = ymd_hms(str_extract(ligne, "^\\S+ \\S+")),
+    niveau  = champ(ligne, "\\[(\\w+)\\]"),
+    user    = na_if(champ(ligne, "user=(\\S+)"), "-"),
+    ip      = champ(ligne, "ip=(\\S+)"),
+    action  = champ(ligne, "action=(\\S+)"),
+    fichier = champ(ligne, "fichier=(\\S+)"),
+    code    = as.integer(champ(ligne, "code=(\\d+)")),
+    duree   = as.numeric(champ(ligne, "duree=(\\d+)ms")),
+    msg     = champ(ligne, 'msg="([^"]*)"')
+  ) |>
+  select(-ligne)
+
+log
+```
+
+`str_match()` renvoie `NA` lorsque le motif est absent, ce qui donne directement `NA` pour `fichier` et `msg` quand ces champs n'existent pas.
+

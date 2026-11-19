@@ -382,6 +382,13 @@ adresses</a></li>
 <li><a href="#b7.-le-fichier-propre" id="toc-b7.-le-fichier-propre">B7.
 Le fichier propre</a></li>
 </ul></li>
+<li><a href="#partie-c-analyser-le-journal-dun-serveur" id="toc-partie-c-analyser-le-journal-dun-serveur">Partie C : Analyser le
+journal d’un serveur</a>
+<ul>
+<li><a href="#c1.-lire-et-compter" id="toc-c1.-lire-et-compter">C1. Lire
+et compter</a></li>
+<li><a href="#c2.-structurer-le-journal" id="toc-c2.-structurer-le-journal">C2. Structurer le journal</a></li>
+</ul></li>
 </ul>
 </div>
 
@@ -1115,6 +1122,61 @@ n_complets</code></pre>
 <pre><code>## [1] 51</code></pre>
 <p>51 contacts sur 60 sont complets (aucune valeur manquante) ; les
 autres ont un e-mail invalide ou un téléphone manquant ou invalide.</p>
+</div>
+</div>
+<div id="partie-c-analyser-le-journal-dun-serveur" class="section level1">
+<h1>Partie C : Analyser le journal d’un serveur</h1>
+<div id="c1.-lire-et-compter" class="section level2">
+<h2>C1. Lire et compter</h2>
+<pre class="r"><code>lignes &lt;- read_lines(&quot;data/journal_serveur.log&quot;)
+length(lignes)</code></pre>
+<pre><code>## [1] 400</code></pre>
+<pre class="r"><code>c(INFO  = sum(str_detect(lignes, &quot;\\[INFO\\]&quot;)),
+  WARN  = sum(str_detect(lignes, &quot;\\[WARN\\]&quot;)),
+  ERROR = sum(str_detect(lignes, &quot;\\[ERROR\\]&quot;)))</code></pre>
+<pre><code>##  INFO  WARN ERROR 
+##   317    45    38</code></pre>
+<p>Le journal compte 400 lignes : 317 INFO, 45 WARN et 38 ERROR. Les
+crochets doivent être échappés car <code>[...]</code> désigne une classe
+de caractères.</p>
+</div>
+<div id="c2.-structurer-le-journal" class="section level2">
+<h2>C2. Structurer le journal</h2>
+<pre class="r"><code>champ &lt;- function(x, motif) str_match(x, motif)[, 2]   # 1er groupe capturant
+
+log &lt;- tibble(ligne = lignes) |&gt;
+  mutate(
+    horodatage = ymd_hms(str_extract(ligne, &quot;^\\S+ \\S+&quot;)),
+    niveau  = champ(ligne, &quot;\\[(\\w+)\\]&quot;),
+    user    = na_if(champ(ligne, &quot;user=(\\S+)&quot;), &quot;-&quot;),
+    ip      = champ(ligne, &quot;ip=(\\S+)&quot;),
+    action  = champ(ligne, &quot;action=(\\S+)&quot;),
+    fichier = champ(ligne, &quot;fichier=(\\S+)&quot;),
+    code    = as.integer(champ(ligne, &quot;code=(\\d+)&quot;)),
+    duree   = as.numeric(champ(ligne, &quot;duree=(\\d+)ms&quot;)),
+    msg     = champ(ligne, &#39;msg=&quot;([^&quot;]*)&quot;&#39;)
+  ) |&gt;
+  select(-ligne)
+
+log</code></pre>
+<pre><code>## # A tibble: 400 × 9
+##    horodatage          niveau user  ip          action fichier  code duree msg  
+##    &lt;dttm&gt;              &lt;chr&gt;  &lt;chr&gt; &lt;chr&gt;       &lt;chr&gt;  &lt;chr&gt;   &lt;int&gt; &lt;dbl&gt; &lt;chr&gt;
+##  1 2026-01-15 00:19:03 WARN   elias 192.168.1.… view   &lt;NA&gt;      401   159 &lt;NA&gt; 
+##  2 2026-01-15 00:23:49 WARN   jade  192.168.1.… downl… notes.…   404   221 &lt;NA&gt; 
+##  3 2026-01-15 00:34:14 ERROR  theo  192.168.1.… downl… photo.…   404  2720 Mémo…
+##  4 2026-01-15 00:39:04 INFO   awa   203.0.113.… search &lt;NA&gt;      200   218 &lt;NA&gt; 
+##  5 2026-01-15 00:42:08 INFO   awa   192.168.1.… search &lt;NA&gt;      200   167 &lt;NA&gt; 
+##  6 2026-01-15 01:10:44 INFO   gael  192.168.1.… upload photo.…   200   534 &lt;NA&gt; 
+##  7 2026-01-15 01:11:08 WARN   theo  192.168.2.… view   &lt;NA&gt;      429   608 &lt;NA&gt; 
+##  8 2026-01-15 01:12:23 INFO   theo  192.168.1.… view   &lt;NA&gt;      200   129 &lt;NA&gt; 
+##  9 2026-01-15 01:20:15 ERROR  jade  192.168.1.… login  &lt;NA&gt;      500   555 Time…
+## 10 2026-01-15 01:41:09 INFO   &lt;NA&gt;  192.168.1.… view   &lt;NA&gt;      200   206 &lt;NA&gt; 
+## # ℹ 390 more rows</code></pre>
+<p><code>str_match()</code> renvoie <code>NA</code> lorsque le motif est
+absent, ce qui donne directement <code>NA</code> pour
+<code>fichier</code> et <code>msg</code> quand ces champs n’existent
+pas.</p>
 </div>
 </div>
 
