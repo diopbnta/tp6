@@ -376,6 +376,9 @@ fichier de contacts</a>
 <li><a href="#b3.-les-e-mails" id="toc-b3.-les-e-mails">B3. Les
 e-mails</a></li>
 <li><a href="#b4.-les-t%C3%A9l%C3%A9phones" id="toc-b4.-les-téléphones">B4. Les téléphones</a></li>
+<li><a href="#b5.-les-adresses" id="toc-b5.-les-adresses">B5. Les
+adresses</a></li>
+<li><a href="#b6.-les-dates-dinscription" id="toc-b6.-les-dates-dinscription">B6. Les dates d’inscription</a></li>
 </ul></li>
 </ul>
 </div>
@@ -925,6 +928,89 @@ zones</code></pre>
 ## 2 04        Sud-Est          10</code></pre>
 <p>Les 21 numéros fixes se partagent entre Île-de-France (11) et Sud-Est
 (10) : aucun numéro ne commence par 02, 03 ou 05.</p>
+</div>
+<div id="b5.-les-adresses" class="section level2">
+<h2>B5. Les adresses</h2>
+<pre class="r"><code>adresses &lt;- tels |&gt;
+  separate_wider_regex(
+    adresse,
+    patterns = c(rue = &quot;[^,]+&quot;, &quot;,\\s*&quot;, cp = &quot;\\d{5}&quot;, &quot;\\s+&quot;, ville = &quot;.+&quot;)
+  ) |&gt;
+  mutate(ville = str_to_title(ville),
+         departement = str_sub(cp, 1, 2))
+
+adresses |&gt; select(rue, cp, ville, departement) |&gt; head()</code></pre>
+<pre><code>## # A tibble: 6 × 4
+##   rue                          cp    ville    departement
+##   &lt;chr&gt;                        &lt;chr&gt; &lt;chr&gt;    &lt;chr&gt;      
+## 1 1 bd Gambetta                75020 Paris    75         
+## 2 38 impasse Pasteur           59000 Lille    59         
+## 3 66 boulevard de la Paix      75011 Paris    75         
+## 4 46 avenue de la Paix         75011 Paris    75         
+## 5 9 boulevard de la République 31000 Toulouse 31         
+## 6 79 avenue de la République   44000 Nantes   44</code></pre>
+<pre class="r"><code>adresses |&gt; count(ville, departement, sort = TRUE)</code></pre>
+<pre><code>## # A tibble: 12 × 3
+##    ville       departement     n
+##    &lt;chr&gt;       &lt;chr&gt;       &lt;int&gt;
+##  1 Paris       75              9
+##  2 Toulouse    31              8
+##  3 Rennes      35              7
+##  4 Strasbourg  67              6
+##  5 Lyon        69              5
+##  6 Marseille   13              5
+##  7 Nantes      44              5
+##  8 Bordeaux    33              4
+##  9 Nice        06              4
+## 10 Saint-Denis 93              3
+## 11 Lille       59              2
+## 12 Montpellier 34              2</code></pre>
+<p>Après mise en forme, 12 villes différentes apparaissent (« PARIS » et
+« Paris » sont maintenant regroupées) ; Paris est la plus
+représentée.</p>
+</div>
+<div id="b6.-les-dates-dinscription" class="section level2">
+<h2>B6. Les dates d’inscription</h2>
+<p><strong>a.</strong></p>
+<pre class="r"><code>f_slash  &lt;- &quot;^\\d{2}/\\d{2}/\\d{4}$&quot;   # jj/mm/aaaa
+f_iso    &lt;- &quot;^\\d{4}-\\d{2}-\\d{2}$&quot;   # aaaa-mm-jj
+f_court  &lt;- &quot;^\\d{2}-\\d{2}-\\d{2}$&quot;   # jj-mm-aa
+
+c(jj_mm_aaaa = sum(str_detect(contacts$inscription, f_slash)),
+  aaaa_mm_jj = sum(str_detect(contacts$inscription, f_iso)),
+  jj_mm_aa   = sum(str_detect(contacts$inscription, f_court)))</code></pre>
+<pre><code>## jj_mm_aaaa aaaa_mm_jj   jj_mm_aa 
+##         38         13          9</code></pre>
+<p>Les trois formats couvrent bien les 60 dates.</p>
+<p><strong>b.</strong></p>
+<pre class="r"><code>dates &lt;- adresses |&gt;
+  mutate(inscription = case_when(
+    str_detect(inscription, f_slash) ~ dmy(inscription),
+    str_detect(inscription, f_iso)   ~ ymd(inscription),
+    str_detect(inscription, f_court) ~ dmy(inscription)
+  ))
+dates |&gt; select(id, inscription) |&gt; head()</code></pre>
+<pre><code>## # A tibble: 6 × 2
+##   id    inscription
+##   &lt;chr&gt; &lt;date&gt;     
+## 1 C001  2023-08-24 
+## 2 C002  2025-02-20 
+## 3 C003  2025-08-20 
+## 4 C004  2024-09-02 
+## 5 C005  2025-07-22 
+## 6 C006  2025-02-20</code></pre>
+<p><strong>c.</strong></p>
+<pre class="r"><code>sum(is.na(dates$inscription))</code></pre>
+<pre><code>## [1] 0</code></pre>
+<pre class="r"><code>dates |&gt; count(annee = year(inscription))</code></pre>
+<pre><code>## # A tibble: 3 × 2
+##   annee     n
+##   &lt;dbl&gt; &lt;int&gt;
+## 1  2023    17
+## 2  2024    21
+## 3  2025    22</code></pre>
+<p>Aucune date n’est manquante après conversion. Les inscriptions se
+répartissent sur 2023, 2024 et 2025 (voir le tableau ci-dessus).</p>
 </div>
 </div>
 

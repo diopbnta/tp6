@@ -292,3 +292,58 @@ zones
 Les `r sum(zones$n)` numéros fixes se partagent entre `r zones$zone[1]` (`r zones$n[1]`) et `r zones$zone[2]` (`r zones$n[2]`) : aucun numéro ne commence par 02, 03 ou 05.
 
 
+## B5. Les adresses
+
+```{r}
+adresses <- tels |>
+  separate_wider_regex(
+    adresse,
+    patterns = c(rue = "[^,]+", ",\\s*", cp = "\\d{5}", "\\s+", ville = ".+")
+  ) |>
+  mutate(ville = str_to_title(ville),
+         departement = str_sub(cp, 1, 2))
+
+adresses |> select(rue, cp, ville, departement) |> head()
+adresses |> count(ville, departement, sort = TRUE)
+```
+
+Après mise en forme, `r n_distinct(adresses$ville)` villes différentes apparaissent (« PARIS » et « Paris » sont maintenant regroupées) ; `r count(adresses, ville, sort = TRUE)$ville[1]` est la plus représentée.
+
+## B6. Les dates d'inscription
+
+**a.**
+
+```{r}
+f_slash  <- "^\\d{2}/\\d{2}/\\d{4}$"   # jj/mm/aaaa
+f_iso    <- "^\\d{4}-\\d{2}-\\d{2}$"   # aaaa-mm-jj
+f_court  <- "^\\d{2}-\\d{2}-\\d{2}$"   # jj-mm-aa
+
+c(jj_mm_aaaa = sum(str_detect(contacts$inscription, f_slash)),
+  aaaa_mm_jj = sum(str_detect(contacts$inscription, f_iso)),
+  jj_mm_aa   = sum(str_detect(contacts$inscription, f_court)))
+```
+
+Les trois formats couvrent bien les 60 dates.
+
+**b.**
+
+```{r}
+dates <- adresses |>
+  mutate(inscription = case_when(
+    str_detect(inscription, f_slash) ~ dmy(inscription),
+    str_detect(inscription, f_iso)   ~ ymd(inscription),
+    str_detect(inscription, f_court) ~ dmy(inscription)
+  ))
+dates |> select(id, inscription) |> head()
+```
+
+**c.**
+
+```{r}
+sum(is.na(dates$inscription))
+dates |> count(annee = year(inscription))
+```
+
+Aucune date n'est manquante après conversion. Les inscriptions se répartissent sur 2023, 2024 et 2025 (voir le tableau ci-dessus).
+
+
