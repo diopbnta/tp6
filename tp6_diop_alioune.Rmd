@@ -405,3 +405,124 @@ log
 
 `str_match()` renvoie `NA` lorsque le motif est absent, ce qui donne directement `NA` pour `fichier` et `msg` quand ces champs n'existent pas.
 
+
+
+## C3. Activité
+
+**a.**
+
+```{r}
+log |>
+  count(jour = as_date(horodatage), niveau) |>
+  pivot_wider(names_from = niveau, values_from = n, values_fill = 0) |>
+  select(jour, INFO, WARN, ERROR)
+```
+
+L'activité est comparable sur les trois jours (entre 121 et 146 requêtes) ; le 17 janvier est le jour le plus chargé, mais aussi celui qui compte le moins d'erreurs.
+
+**b.**
+
+```{r}
+par_heure <- log |> count(heure = hour(horodatage), sort = TRUE)
+head(par_heure, 5)
+```
+
+Le serveur est le plus sollicité à `r par_heure$heure[1]` h (`r par_heure$n[1]` requêtes sur les trois jours).
+
+**c.**
+
+```{r}
+erreurs_user <- log |> filter(niveau == "ERROR") |> count(user, sort = TRUE)
+erreurs_user
+part_anonyme <- mean(is.na(log$user))
+part_anonyme
+```
+
+L'utilisateur ayant le plus d'erreurs est `r erreurs_user$user[1]` (`r erreurs_user$n[1]` erreurs). Les requêtes anonymes représentent `r round(100 * part_anonyme, 1)` % du total.
+
+## C4. Performances et erreurs
+
+**a.**
+
+```{r}
+log |>
+  group_by(action) |>
+  summarise(n = n(),
+            mediane = median(duree),
+            p90 = quantile(duree, 0.9)) |>
+  arrange(desc(mediane))
+```
+
+**b.**
+
+```{r}
+duree_niveau <- log |>
+  group_by(niveau) |>
+  summarise(n = n(), mediane = median(duree), p90 = quantile(duree, 0.9))
+duree_niveau
+```
+
+Oui : la durée médiane des requêtes en erreur (`r duree_niveau$mediane[duree_niveau$niveau == "ERROR"]` ms) est nettement supérieure à celle des requêtes INFO (`r duree_niveau$mediane[duree_niveau$niveau == "INFO"]` ms), ce qui est cohérent avec les messages de timeout.
+
+**c.**
+
+```{r}
+log |> filter(!is.na(msg)) |> count(msg, sort = TRUE)
+```
+
+Quatre messages d'erreur différents apparaissent ; le plus fréquent est le timeout de la base de données.
+
+**d.**
+
+```{r}
+telechargements <- log |>
+  filter(action == "download", code == 200) |>
+  mutate(extension = str_extract(fichier, "(?<=\\.)[^.]+$"))
+
+telechargements |> count(fichier, sort = TRUE)
+telechargements |> count(extension, sort = TRUE)
+```
+
+Le fichier le plus téléchargé avec succès est `r count(telechargements, fichier, sort = TRUE)$fichier[1]` (`r count(telechargements, fichier, sort = TRUE)$n[1]` fois) ; comme chaque extension ne correspond ici qu'à un seul fichier, le classement par extension (png, csv, html…) est identique.
+
+## C5. Adresses IP suspectes
+
+**a.**
+
+```{r}
+externes <- log |> filter(!str_detect(ip, "^192\\.168\\."))
+nrow(externes)
+n_distinct(externes$ip)
+```
+
+`r nrow(externes)` requêtes viennent de l'extérieur du réseau interne, depuis `r n_distinct(externes$ip)` adresses distinctes.
+
+**b.**
+
+```{r}
+suspectes <- externes |>
+  group_by(ip) |>
+  summarise(
+    requetes = n(),
+    utilisateurs = n_distinct(user, na.rm = TRUE),
+    anonymes = sum(is.na(user)),
+    erreurs = sum(niveau == "ERROR"),
+    refus = sum(code %in% c(401, 429))
+  ) |>
+  arrange(desc(requetes))
+suspectes
+
+externes |> filter(ip == suspectes$ip[1]) |> count(user, action, code, sort = TRUE)
+```
+
+Aucune des deux adresses extérieures ne provoque d'erreur ni de refus (401 ou 429). L'adresse la plus suspecte est néanmoins `r suspectes$ip[1]` : depuis l'extérieur, elle envoie `r suspectes$requetes[1]` requêtes sous `r suspectes$utilisateurs[1]` identités différentes (plus `r suspectes$anonymes[1]` anonyme). Une même machine ne devrait pas être utilisée par autant de comptes : cela évoque un partage d'identifiants ou une utilisation frauduleuse de comptes volés, d'autant que les connexions réussissent. `r suspectes$ip[2]` est également utilisée par `r suspectes$utilisateurs[2]` comptes différents pour `r suspectes$requetes[2]` requêtes : chaque compte n'y apparaît qu'une fois.
+
+**c.**
+
+```{r}
+regex_ipv4 <- "^\\d{1,3}(\\.\\d{1,3}){3}$"
+all(str_detect(log$ip, regex_ipv4))
+```
+
+Toutes les adresses ont bien la forme d'une adresse IPv4.
+

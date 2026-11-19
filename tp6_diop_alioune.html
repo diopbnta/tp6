@@ -388,6 +388,11 @@ journal d’un serveur</a>
 <li><a href="#c1.-lire-et-compter" id="toc-c1.-lire-et-compter">C1. Lire
 et compter</a></li>
 <li><a href="#c2.-structurer-le-journal" id="toc-c2.-structurer-le-journal">C2. Structurer le journal</a></li>
+<li><a href="#c3.-activit%C3%A9" id="toc-c3.-activité">C3.
+Activité</a></li>
+<li><a href="#c4.-performances-et-erreurs" id="toc-c4.-performances-et-erreurs">C4. Performances et
+erreurs</a></li>
+<li><a href="#c5.-adresses-ip-suspectes" id="toc-c5.-adresses-ip-suspectes">C5. Adresses IP suspectes</a></li>
 </ul></li>
 </ul>
 </div>
@@ -1177,6 +1182,200 @@ log</code></pre>
 absent, ce qui donne directement <code>NA</code> pour
 <code>fichier</code> et <code>msg</code> quand ces champs n’existent
 pas.</p>
+</div>
+<div id="c3.-activité" class="section level2">
+<h2>C3. Activité</h2>
+<p><strong>a.</strong></p>
+<pre class="r"><code>log |&gt;
+  count(jour = as_date(horodatage), niveau) |&gt;
+  pivot_wider(names_from = niveau, values_from = n, values_fill = 0) |&gt;
+  select(jour, INFO, WARN, ERROR)</code></pre>
+<pre><code>## # A tibble: 3 × 4
+##   jour        INFO  WARN ERROR
+##   &lt;date&gt;     &lt;int&gt; &lt;int&gt; &lt;int&gt;
+## 1 2026-01-15   101    17    15
+## 2 2026-01-16    96    13    12
+## 3 2026-01-17   120    15    11</code></pre>
+<p>L’activité est comparable sur les trois jours (entre 121 et 146
+requêtes) ; le 17 janvier est le jour le plus chargé, mais aussi celui
+qui compte le moins d’erreurs.</p>
+<p><strong>b.</strong></p>
+<pre class="r"><code>par_heure &lt;- log |&gt; count(heure = hour(horodatage), sort = TRUE)
+head(par_heure, 5)</code></pre>
+<pre><code>## # A tibble: 5 × 2
+##   heure     n
+##   &lt;int&gt; &lt;int&gt;
+## 1    14    29
+## 2    10    25
+## 3    19    25
+## 4     4    23
+## 5     1    20</code></pre>
+<p>Le serveur est le plus sollicité à 14 h (29 requêtes sur les trois
+jours).</p>
+<p><strong>c.</strong></p>
+<pre class="r"><code>erreurs_user &lt;- log |&gt; filter(niveau == &quot;ERROR&quot;) |&gt; count(user, sort = TRUE)
+erreurs_user</code></pre>
+<pre><code>## # A tibble: 16 × 2
+##    user         n
+##    &lt;chr&gt;    &lt;int&gt;
+##  1 jade         5
+##  2 rokhaya      4
+##  3 valerie      4
+##  4 awa          3
+##  5 clemence     3
+##  6 wassim       3
+##  7 chen         2
+##  8 dina         2
+##  9 gael         2
+## 10 moussa       2
+## 11 pauline      2
+## 12 &lt;NA&gt;         2
+## 13 djibril      1
+## 14 elias        1
+## 15 quentin      1
+## 16 theo         1</code></pre>
+<pre class="r"><code>part_anonyme &lt;- mean(is.na(log$user))
+part_anonyme</code></pre>
+<pre><code>## [1] 0.0425</code></pre>
+<p>L’utilisateur ayant le plus d’erreurs est jade (5 erreurs). Les
+requêtes anonymes représentent 4.2 % du total.</p>
+</div>
+<div id="c4.-performances-et-erreurs" class="section level2">
+<h2>C4. Performances et erreurs</h2>
+<p><strong>a.</strong></p>
+<pre class="r"><code>log |&gt;
+  group_by(action) |&gt;
+  summarise(n = n(),
+            mediane = median(duree),
+            p90 = quantile(duree, 0.9)) |&gt;
+  arrange(desc(mediane))</code></pre>
+<pre><code>## # A tibble: 6 × 4
+##   action       n mediane   p90
+##   &lt;chr&gt;    &lt;int&gt;   &lt;dbl&gt; &lt;dbl&gt;
+## 1 upload      17    257   536 
+## 2 login       77    222   533.
+## 3 logout      61    207   614 
+## 4 download    81    199   796 
+## 5 search      74    194   514.
+## 6 view        90    180.  622.</code></pre>
+<p><strong>b.</strong></p>
+<pre class="r"><code>duree_niveau &lt;- log |&gt;
+  group_by(niveau) |&gt;
+  summarise(n = n(), mediane = median(duree), p90 = quantile(duree, 0.9))
+duree_niveau</code></pre>
+<pre><code>## # A tibble: 3 × 4
+##   niveau     n mediane   p90
+##   &lt;chr&gt;  &lt;int&gt;   &lt;dbl&gt; &lt;dbl&gt;
+## 1 ERROR     38     785 2050 
+## 2 INFO     317     176  473.
+## 3 WARN      45     196  429.</code></pre>
+<p>Oui : la durée médiane des requêtes en erreur (785 ms) est nettement
+supérieure à celle des requêtes INFO (176 ms), ce qui est cohérent avec
+les messages de timeout.</p>
+<p><strong>c.</strong></p>
+<pre class="r"><code>log |&gt; filter(!is.na(msg)) |&gt; count(msg, sort = TRUE)</code></pre>
+<pre><code>## # A tibble: 4 × 2
+##   msg                         n
+##   &lt;chr&gt;                   &lt;int&gt;
+## 1 Timeout base de données    12
+## 2 Connexion refusée          10
+## 3 Mémoire insuffisante        9
+## 4 Fichier introuvable         7</code></pre>
+<p>Quatre messages d’erreur différents apparaissent ; le plus fréquent
+est le timeout de la base de données.</p>
+<p><strong>d.</strong></p>
+<pre class="r"><code>telechargements &lt;- log |&gt;
+  filter(action == &quot;download&quot;, code == 200) |&gt;
+  mutate(extension = str_extract(fichier, &quot;(?&lt;=\\.)[^.]+$&quot;))
+
+telechargements |&gt; count(fichier, sort = TRUE)</code></pre>
+<pre><code>## # A tibble: 6 × 2
+##   fichier              n
+##   &lt;chr&gt;            &lt;int&gt;
+## 1 photo.png           14
+## 2 data.csv            12
+## 3 cours_R.html        10
+## 4 rapport_2025.pdf     8
+## 5 archive.zip          7
+## 6 notes.xlsx           7</code></pre>
+<pre class="r"><code>telechargements |&gt; count(extension, sort = TRUE)</code></pre>
+<pre><code>## # A tibble: 6 × 2
+##   extension     n
+##   &lt;chr&gt;     &lt;int&gt;
+## 1 png          14
+## 2 csv          12
+## 3 html         10
+## 4 pdf           8
+## 5 xlsx          7
+## 6 zip           7</code></pre>
+<p>Le fichier le plus téléchargé avec succès est photo.png (14 fois) ;
+comme chaque extension ne correspond ici qu’à un seul fichier, le
+classement par extension (png, csv, html…) est identique.</p>
+</div>
+<div id="c5.-adresses-ip-suspectes" class="section level2">
+<h2>C5. Adresses IP suspectes</h2>
+<p><strong>a.</strong></p>
+<pre class="r"><code>externes &lt;- log |&gt; filter(!str_detect(ip, &quot;^192\\.168\\.&quot;))
+nrow(externes)</code></pre>
+<pre><code>## [1] 25</code></pre>
+<pre class="r"><code>n_distinct(externes$ip)</code></pre>
+<pre><code>## [1] 2</code></pre>
+<p>25 requêtes viennent de l’extérieur du réseau interne, depuis 2
+adresses distinctes.</p>
+<p><strong>b.</strong></p>
+<pre class="r"><code>suspectes &lt;- externes |&gt;
+  group_by(ip) |&gt;
+  summarise(
+    requetes = n(),
+    utilisateurs = n_distinct(user, na.rm = TRUE),
+    anonymes = sum(is.na(user)),
+    erreurs = sum(niveau == &quot;ERROR&quot;),
+    refus = sum(code %in% c(401, 429))
+  ) |&gt;
+  arrange(desc(requetes))
+suspectes</code></pre>
+<pre><code>## # A tibble: 2 × 6
+##   ip           requetes utilisateurs anonymes erreurs refus
+##   &lt;chr&gt;           &lt;int&gt;        &lt;int&gt;    &lt;int&gt;   &lt;int&gt; &lt;int&gt;
+## 1 203.0.113.7        20           10        1       0     0
+## 2 203.0.113.42        5            5        0       0     0</code></pre>
+<pre class="r"><code>externes |&gt; filter(ip == suspectes$ip[1]) |&gt; count(user, action, code, sort = TRUE)</code></pre>
+<pre><code>## # A tibble: 19 × 4
+##    user     action    code     n
+##    &lt;chr&gt;    &lt;chr&gt;    &lt;int&gt; &lt;int&gt;
+##  1 clemence download   200     2
+##  2 awa      download   200     1
+##  3 awa      logout     200     1
+##  4 chen     login      200     1
+##  5 chen     logout     200     1
+##  6 chen     view       200     1
+##  7 clemence login      200     1
+##  8 clemence search     200     1
+##  9 clemence upload     200     1
+## 10 clemence view       200     1
+## 11 dina     login      200     1
+## 12 elias    view       200     1
+## 13 gael     upload     200     1
+## 14 jade     download   200     1
+## 15 jade     login      200     1
+## 16 rokhaya  logout     200     1
+## 17 sami     search     200     1
+## 18 valerie  download   200     1
+## 19 &lt;NA&gt;     download   200     1</code></pre>
+<p>Aucune des deux adresses extérieures ne provoque d’erreur ni de refus
+(401 ou 429). L’adresse la plus suspecte est néanmoins 203.0.113.7 :
+depuis l’extérieur, elle envoie 20 requêtes sous 10 identités
+différentes (plus 1 anonyme). Une même machine ne devrait pas être
+utilisée par autant de comptes : cela évoque un partage d’identifiants
+ou une utilisation frauduleuse de comptes volés, d’autant que les
+connexions réussissent. 203.0.113.42 est également utilisée par 5
+comptes différents pour 5 requêtes : chaque compte n’y apparaît qu’une
+fois.</p>
+<p><strong>c.</strong></p>
+<pre class="r"><code>regex_ipv4 &lt;- &quot;^\\d{1,3}(\\.\\d{1,3}){3}$&quot;
+all(str_detect(log$ip, regex_ipv4))</code></pre>
+<pre><code>## [1] TRUE</code></pre>
+<p>Toutes les adresses ont bien la forme d’une adresse IPv4.</p>
 </div>
 </div>
 
