@@ -368,6 +368,12 @@ Mettre en forme</a></li>
 <li><a href="#a3.-des-codes-produits" id="toc-a3.-des-codes-produits">A3. Des codes produits</a></li>
 <li><a href="#a4.-d%C3%A9boguer-des-regex" id="toc-a4.-déboguer-des-regex">A4. Déboguer des regex</a></li>
 </ul></li>
+<li><a href="#partie-b-nettoyer-un-fichier-de-contacts" id="toc-partie-b-nettoyer-un-fichier-de-contacts">Partie B : Nettoyer un
+fichier de contacts</a>
+<ul>
+<li><a href="#b1.-explorer" id="toc-b1.-explorer">B1. Explorer</a></li>
+<li><a href="#b2.-les-noms" id="toc-b2.-les-noms">B2. Les noms</a></li>
+</ul></li>
 </ul>
 </div>
 
@@ -550,6 +556,274 @@ détecté. On utilise <code>regex(..., ignore_case = TRUE)</code>.</li>
 <pre><code>## [1] &quot;15/01/2026&quot;</code></pre>
 <pre class="r"><code>str_detect(c(&quot;Photo&quot;, &quot;photo&quot;), regex(&quot;^photo&quot;, ignore_case = TRUE)) # 4</code></pre>
 <pre><code>## [1] TRUE TRUE</code></pre>
+</div>
+</div>
+<div id="partie-b-nettoyer-un-fichier-de-contacts" class="section level1">
+<h1>Partie B : Nettoyer un fichier de contacts</h1>
+<div id="b1.-explorer" class="section level2">
+<h2>B1. Explorer</h2>
+<p>On importe toutes les colonnes en texte pour ne rien perdre (les
+téléphones commençant par 0, par exemple).</p>
+<pre class="r"><code>contacts &lt;- read_csv(&quot;data/contacts_bruts.csv&quot;, col_types = cols(.default = col_character()))
+dim(contacts)</code></pre>
+<pre><code>## [1] 60  6</code></pre>
+<pre class="r"><code>contacts |&gt; slice(seq(1, 60, by = 6)) |&gt; knitr::kable()</code></pre>
+<table>
+<colgroup>
+<col width="4%" />
+<col width="14%" />
+<col width="22%" />
+<col width="13%" />
+<col width="34%" />
+<col width="10%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">id</th>
+<th align="left">nom</th>
+<th align="left">email</th>
+<th align="left">telephone</th>
+<th align="left">adresse</th>
+<th align="left">inscription</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">C001</td>
+<td align="left">valérie fall</td>
+<td align="left"><a href="mailto:valerie.fall@yahoo.fr" class="email">valerie.fall@yahoo.fr</a></td>
+<td align="left">NA</td>
+<td align="left">1 bd Gambetta, 75020 PARIS</td>
+<td align="left">24/08/2023</td>
+</tr>
+<tr class="even">
+<td align="left">C007</td>
+<td align="left">Awa Faye</td>
+<td align="left"><a href="mailto:awa.faye@yahoo.fr" class="email">awa.faye@yahoo.fr</a></td>
+<td align="left">0724337204</td>
+<td align="left">85 rue Gambetta, 31000 TOULOUSE</td>
+<td align="left">02/09/2025</td>
+</tr>
+<tr class="odd">
+<td align="left">C013</td>
+<td align="left">sami diop</td>
+<td align="left"><a href="mailto:sami.diop@yahoo.fr" class="email">sami.diop@yahoo.fr</a></td>
+<td align="left">06 52 63 68 30</td>
+<td align="left">62 Av. Gambetta, 35000 RENNES</td>
+<td align="left">2024-09-17</td>
+</tr>
+<tr class="even">
+<td align="left">C019</td>
+<td align="left">wassim le goff</td>
+<td align="left"><a href="mailto:wassim.legoff@outlook.fr" class="email">wassim.legoff@outlook.fr</a></td>
+<td align="left">0605942424</td>
+<td align="left">94 Av. des Lilas, 33800 BORDEAUX</td>
+<td align="left">2024-09-14</td>
+</tr>
+<tr class="odd">
+<td align="left">C025</td>
+<td align="left">LAMBERT Valérie</td>
+<td align="left"><a href="mailto:valerie.lambert@gmail.com" class="email">valerie.lambert@gmail.com</a></td>
+<td align="left">06.37.15.35.13</td>
+<td align="left">40 Av. Saint-Martin, 44000 Nantes</td>
+<td align="left">15/08/2024</td>
+</tr>
+<tr class="even">
+<td align="left">C031</td>
+<td align="left">zoé garcia</td>
+<td align="left"><a href="mailto:zoe.garcia@free.fr" class="email">zoe.garcia@free.fr</a></td>
+<td align="left">04.20.59.96.71</td>
+<td align="left">2 boulevard de la Paix, 69007 LYON</td>
+<td align="left">15-03-24</td>
+</tr>
+<tr class="odd">
+<td align="left">C037</td>
+<td align="left">Pauline Haddad</td>
+<td align="left"><a href="mailto:pauline.haddad@lecnam.net" class="email">pauline.haddad@lecnam.net</a></td>
+<td align="left">04 85 92 03 37</td>
+<td align="left">1 avenue Jean Jaurès, 35000 RENNES</td>
+<td align="left">12-01-23</td>
+</tr>
+<tr class="even">
+<td align="left">C043</td>
+<td align="left">MBAYE Fatou</td>
+<td align="left"><a href="mailto:FATOU.MBAYE@FREE.FR" class="email">FATOU.MBAYE@FREE.FR</a></td>
+<td align="left">0643083425</td>
+<td align="left">82 avenue de la République, 75020 PARIS</td>
+<td align="left">22-06-24</td>
+</tr>
+<tr class="odd">
+<td align="left">C049</td>
+<td align="left">Djibril Girard</td>
+<td align="left"><a href="mailto:djibril.girard@yahoo.fr" class="email">djibril.girard@yahoo.fr</a></td>
+<td align="left">0180357856</td>
+<td align="left">94 avenue Victor Hugo, 44000 Nantes</td>
+<td align="left">20/06/2024</td>
+</tr>
+<tr class="even">
+<td align="left">C055</td>
+<td align="left">DIALLO Chen</td>
+<td align="left"><a href="mailto:CHEN.DIALLO@LECNAM.NET" class="email">CHEN.DIALLO@LECNAM.NET</a></td>
+<td align="left">+33(0)751922467</td>
+<td align="left">53 rue Gambetta, 06000 Nice</td>
+<td align="left">28/04/2024</td>
+</tr>
+</tbody>
+</table>
+<p>Formats observés :</p>
+<ul>
+<li><strong>id</strong> : toujours <code>C</code> suivi de 3 chiffres,
+rien à corriger.</li>
+<li><strong>nom</strong> : <code>Prénom Nom</code> (« Gaël Mbaye »),
+<code>NOM Prénom</code> (« DIALLO Quentin »), <code>Nom, Prénom</code>
+(« Benali, Rokhaya »), en minuscules avec des espaces superflus («
+··awa···ndiaye· ») ou tout en majuscules (« JADE GIRARD ») ; certains
+noms ont deux mots (« Le Goff »).</li>
+<li><strong>email</strong> : en minuscules ou en MAJUSCULES, avec des
+erreurs : <code>@</code> manquant (<code>moussa.wangyahoo.fr</code>),
+doublé (<code>@@</code>), pas d’extension (<code>@gmail</code>) ou
+valeur manquante.</li>
+<li><strong>telephone</strong> : <code>06 12 34 56 78</code>,
+<code>0612345678</code>, <code>06.12.34.56.78</code>,
+<code>06-12-34-56-78</code>, <code>+33 6 …</code>,
+<code>+33(0)6…</code>, plus des valeurs invalides (<code>inconnu</code>,
+<code>06 12 34</code>) ou manquantes.</li>
+<li><strong>adresse</strong> : <code>numéro voie, CP VILLE</code>, avec
+la ville en majuscules ou non et des voies abrégées (<code>Av.</code>,
+<code>bd</code>).</li>
+<li><strong>inscription</strong> : <code>jj/mm/aaaa</code>,
+<code>aaaa-mm-jj</code> ou <code>jj-mm-aa</code>.</li>
+</ul>
+</div>
+<div id="b2.-les-noms" class="section level2">
+<h2>B2. Les noms</h2>
+<p><strong>a.</strong> On commence par <code>str_squish()</code>, puis
+on distingue les trois cas avec <code>case_when()</code>.</p>
+<pre class="r"><code>maj &lt;- &quot;^[[:upper:]]+$&quot;   # un mot entièrement en majuscules
+
+noms &lt;- contacts |&gt;
+  mutate(
+    nom_brut = str_squish(nom),
+    mot1 = word(nom_brut, 1),
+    mot2 = word(nom_brut, 2),
+    format = case_when(
+      str_detect(nom_brut, &quot;,&quot;) ~ &quot;Nom, Prénom&quot;,
+      str_detect(mot1, maj) &amp; !str_detect(mot2, maj) ~ &quot;NOM Prénom&quot;,
+      .default = &quot;Prénom Nom&quot;
+    ),
+    prenom = case_when(
+      format == &quot;Nom, Prénom&quot; ~ str_trim(str_extract(nom_brut, &quot;(?&lt;=,).*&quot;)),
+      format == &quot;NOM Prénom&quot;  ~ word(nom_brut, 2, -1),
+      .default = mot1
+    ),
+    nom = case_when(
+      format == &quot;Nom, Prénom&quot; ~ str_extract(nom_brut, &quot;^[^,]+&quot;),
+      format == &quot;NOM Prénom&quot;  ~ mot1,
+      .default = word(nom_brut, 2, -1)
+    )
+  )</code></pre>
+<p><strong>b.</strong></p>
+<pre class="r"><code>noms &lt;- noms |&gt;
+  mutate(prenom = str_to_title(prenom),
+         nom = str_to_upper(nom))</code></pre>
+<p><strong>c.</strong> Trois lignes de chaque format détecté :</p>
+<pre class="r"><code>noms |&gt;
+  group_by(format) |&gt;
+  slice_head(n = 3) |&gt;
+  ungroup() |&gt;
+  select(id, nom_brut, format, prenom, nom) |&gt;
+  knitr::kable()</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left">id</th>
+<th align="left">nom_brut</th>
+<th align="left">format</th>
+<th align="left">prenom</th>
+<th align="left">nom</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">C011</td>
+<td align="left">DIALLO Quentin</td>
+<td align="left">NOM Prénom</td>
+<td align="left">Quentin</td>
+<td align="left">DIALLO</td>
+</tr>
+<tr class="even">
+<td align="left">C015</td>
+<td align="left">DURAND Dina</td>
+<td align="left">NOM Prénom</td>
+<td align="left">Dina</td>
+<td align="left">DURAND</td>
+</tr>
+<tr class="odd">
+<td align="left">C025</td>
+<td align="left">LAMBERT Valérie</td>
+<td align="left">NOM Prénom</td>
+<td align="left">Valérie</td>
+<td align="left">LAMBERT</td>
+</tr>
+<tr class="even">
+<td align="left">C010</td>
+<td align="left">Wang, Moussa</td>
+<td align="left">Nom, Prénom</td>
+<td align="left">Moussa</td>
+<td align="left">WANG</td>
+</tr>
+<tr class="odd">
+<td align="left">C012</td>
+<td align="left">Benali, Rokhaya</td>
+<td align="left">Nom, Prénom</td>
+<td align="left">Rokhaya</td>
+<td align="left">BENALI</td>
+</tr>
+<tr class="even">
+<td align="left">C016</td>
+<td align="left">Benali, Gaël</td>
+<td align="left">Nom, Prénom</td>
+<td align="left">Gaël</td>
+<td align="left">BENALI</td>
+</tr>
+<tr class="odd">
+<td align="left">C001</td>
+<td align="left">valérie fall</td>
+<td align="left">Prénom Nom</td>
+<td align="left">Valérie</td>
+<td align="left">FALL</td>
+</tr>
+<tr class="even">
+<td align="left">C002</td>
+<td align="left">JADE GIRARD</td>
+<td align="left">Prénom Nom</td>
+<td align="left">Jade</td>
+<td align="left">GIRARD</td>
+</tr>
+<tr class="odd">
+<td align="left">C003</td>
+<td align="left">Chen Chevalier</td>
+<td align="left">Prénom Nom</td>
+<td align="left">Chen</td>
+<td align="left">CHEVALIER</td>
+</tr>
+</tbody>
+</table>
+<p>Les cas courants sont correctement traités, mais un nom reste mal
+découpé : « LE GOFF Nora » (C030). Son premier <strong>et</strong> son
+deuxième mot sont en majuscules, donc la règle <code>NOM Prénom</code>
+ne s’applique pas et on obtient le prénom « Le » et le nom « GOFF NORA
+». Plus généralement, quand le nom est écrit tout en majuscules ou en
+minuscules, la casse ne permet plus de distinguer le prénom du nom : un
+nom composé (« LE GOFF ») ou un prénom composé ne serait pas découpé
+correctement.</p>
+<pre class="r"><code>noms |&gt; filter(str_detect(nom, &quot; &quot;)) |&gt; select(id, nom_brut, prenom, nom)</code></pre>
+<pre><code>## # A tibble: 3 × 4
+##   id    nom_brut       prenom nom      
+##   &lt;chr&gt; &lt;chr&gt;          &lt;chr&gt;  &lt;chr&gt;    
+## 1 C019  wassim le goff Wassim LE GOFF  
+## 2 C030  LE GOFF Nora   Le     GOFF NORA
+## 3 C050  Léa Le Goff    Léa    LE GOFF</code></pre>
 </div>
 </div>
 

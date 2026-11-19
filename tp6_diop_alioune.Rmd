@@ -126,3 +126,85 @@ str_detect("prix : 1500 €", "\\d+")                                # 2
 str_replace("2026-01-15", "(\\d+)-(\\d+)-(\\d+)", "\\3/\\2/\\1")   # 3 (déjà correct)
 str_detect(c("Photo", "photo"), regex("^photo", ignore_case = TRUE)) # 4
 ```
+
+
+# Partie B : Nettoyer un fichier de contacts
+
+## B1. Explorer
+
+On importe toutes les colonnes en texte pour ne rien perdre (les téléphones commençant par 0, par exemple).
+
+```{r}
+contacts <- read_csv("data/contacts_bruts.csv", col_types = cols(.default = col_character()))
+dim(contacts)
+contacts |> slice(seq(1, 60, by = 6)) |> knitr::kable()
+```
+
+Formats observés :
+
+- **id** : toujours `C` suivi de 3 chiffres, rien à corriger.
+- **nom** : `Prénom Nom` (« Gaël Mbaye »), `NOM Prénom` (« DIALLO Quentin »), `Nom, Prénom` (« Benali, Rokhaya »), en minuscules avec des espaces superflus (« ··awa···ndiaye· ») ou tout en majuscules (« JADE GIRARD ») ; certains noms ont deux mots (« Le Goff »).
+- **email** : en minuscules ou en MAJUSCULES, avec des erreurs : `@` manquant (`moussa.wangyahoo.fr`), doublé (`@@`), pas d'extension (`@gmail`) ou valeur manquante.
+- **telephone** : `06 12 34 56 78`, `0612345678`, `06.12.34.56.78`, `06-12-34-56-78`, `+33 6 …`, `+33(0)6…`, plus des valeurs invalides (`inconnu`, `06 12 34`) ou manquantes.
+- **adresse** : `numéro voie, CP VILLE`, avec la ville en majuscules ou non et des voies abrégées (`Av.`, `bd`).
+- **inscription** : `jj/mm/aaaa`, `aaaa-mm-jj` ou `jj-mm-aa`.
+
+
+## B2. Les noms
+
+**a.** On commence par `str_squish()`, puis on distingue les trois cas avec `case_when()`.
+
+```{r}
+maj <- "^[[:upper:]]+$"   # un mot entièrement en majuscules
+
+noms <- contacts |>
+  mutate(
+    nom_brut = str_squish(nom),
+    mot1 = word(nom_brut, 1),
+    mot2 = word(nom_brut, 2),
+    format = case_when(
+      str_detect(nom_brut, ",") ~ "Nom, Prénom",
+      str_detect(mot1, maj) & !str_detect(mot2, maj) ~ "NOM Prénom",
+      .default = "Prénom Nom"
+    ),
+    prenom = case_when(
+      format == "Nom, Prénom" ~ str_trim(str_extract(nom_brut, "(?<=,).*")),
+      format == "NOM Prénom"  ~ word(nom_brut, 2, -1),
+      .default = mot1
+    ),
+    nom = case_when(
+      format == "Nom, Prénom" ~ str_extract(nom_brut, "^[^,]+"),
+      format == "NOM Prénom"  ~ mot1,
+      .default = word(nom_brut, 2, -1)
+    )
+  )
+```
+
+**b.**
+
+```{r}
+noms <- noms |>
+  mutate(prenom = str_to_title(prenom),
+         nom = str_to_upper(nom))
+```
+
+**c.** Trois lignes de chaque format détecté :
+
+```{r}
+noms |>
+  group_by(format) |>
+  slice_head(n = 3) |>
+  ungroup() |>
+  select(id, nom_brut, format, prenom, nom) |>
+  knitr::kable()
+```
+
+Les cas courants sont correctement traités, mais un nom reste mal découpé : « LE GOFF Nora » (C030). Son premier **et** son deuxième mot sont en majuscules, donc la règle `NOM Prénom` ne s'applique pas et on obtient le prénom « Le » et le nom « GOFF NORA ». Plus généralement, quand le nom est écrit tout en majuscules ou en minuscules, la casse ne permet plus de distinguer le prénom du nom : un nom composé (« LE GOFF ») ou un prénom composé ne serait pas découpé correctement.
+
+
+
+```{r}
+noms |> filter(str_detect(nom, " ")) |> select(id, nom_brut, prenom, nom)
+```
+
+
